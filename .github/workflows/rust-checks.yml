@@ -1,0 +1,56 @@
+name: Rust Checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format-and-lint:
+    name: Check Format and Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+  anchor-test:
+    name: Run Anchor Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        continue-on-error: true
+
+      - name: Setup Anchor Environment
+        uses: ./.github/actions/setup-anchor-env
+        with:
+          solana-cli-version: "2.1.18"
+          anchor-version: "0.31.0"
+
+      - name: Create keypair
+        run: solana-keygen new --silent --no-bip39-passphrase --outfile ~/.config/solana/id.json
+
+      - name: Run Anchor tests
+        env:
+          ANCHOR_LOG: true
+        run: anchor test

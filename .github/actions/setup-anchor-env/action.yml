@@ -1,0 +1,33 @@
+name: "Setup Anchor Environment"
+description: "Install Anchor, Solana CLI tools, and Node.js."
+inputs:
+  solana-cli-version:
+    description: "Version of Solana (anza) CLI to use"
+  anchor-version:
+    description: "Version of Anchor to use"
+runs:
+  using: "composite"
+  steps:
+    - name: Cache Solana CLI tools
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/solana/
+          ~/.local/share/solana/
+        key: solana-cli-${{ runner.os }}-build-${{ inputs.solana-cli-version }}
+        restore-keys: |
+          solana-cli-${{ runner.os }}-build-
+
+    - name: Install Solana CLI tools
+      run: |
+        echo "Installing Solana v${{ inputs.solana-cli-version }} from release.anza.xyz..."
+        sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana-cli-version }}/install)"
+      shell: bash
+
+    - name: Update PATH for Solana
+      run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      shell: bash
+
+    - name: Install Anchor CLI
+      run: cargo install --git https://github.com/coral-xyz/anchor --tag v${{ inputs.anchor-version }} anchor-cli --locked
+      shell: bash

@@ -1,0 +1,36 @@
+[toolchain]
+anchor-version = "0.31.0"
+solana_version = "2.1.18"
+package_manager = "yarn"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+bridge_cards = "E7vM2tFMoHU49pqTgaoGDcCRAFGYs2w6rKPsRQJuukgA"
+
+[programs.devnet]
+bridge_cards = "E7vM2tFMoHU49pqTgaoGDcCRAFGYs2w6rKPsRQJuukgA"
+
+[registry]
+url = "https://api.apr.dev"
+
+# Default provider is always localnet. 
+# If using in other environments, you should set options manually   
+# === For example: ===
+# Deploy to devnet
+# anchor deploy --provider.cluster devnet --provider.wallet /path/to/your/devnet-wallet.json
+
+# Run a script targeting devnet (e.g., initialize)
+# anchor run initialize --provider.cluster devnet --provider.wallet /path/to/your/devnet-wallet.json
+# =====
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+url = "http://127.0.0.1:8899"
+
+[scripts]
+test = "cargo test"
+initialize = "ts-node scripts/initialize.ts"
+build = "export PROGRAM_ID=$(solana-keygen pubkey program-keypair.json) && anchor build"

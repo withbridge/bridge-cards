@@ -1,0 +1,31 @@
+[package]
+name = "bridge_cards"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "bridge_cards"
+
+[features]
+default = []
+local = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
+anchor-spl = "0.31.0"
+account-data-trait = { path = "../../account-data-trait" }
+account-data-macro-derive = { path = "../../account-data-macro-derive" }
+# Explicit version needed to fix IDL build 
+# https://github.com/solana-foundation/anchor/issues/3681
+proc-macro2 = "1.0.95"
+
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(solana)'] }

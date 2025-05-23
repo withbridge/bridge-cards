@@ -1,0 +1,53 @@
+name: Docker Build Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Docker (Rust ${{ matrix.rust }} / Solana ${{ matrix.solana }} / Anchor ${{ matrix.anchor }}) ${{ matrix.experimental && '(Experimental)' || '' }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # === Latest stable version (blocking) ===
+          - rust: "1.85"
+            solana: "v2.1.18"
+            anchor: "v0.31.0"
+            experimental: false
+
+          # === Pending release versions (non-blocking) ===
+          - rust: "1.85"
+            solana: "v2.2.1"
+            anchor: "v0.31.0"
+            experimental: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            RUST_VERSION=${{ matrix.rust }}
+            SOLANA_VERSION=${{ matrix.solana }}
+            ANCHOR_VERSION=${{ matrix.anchor }}
+          push: false
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: false
