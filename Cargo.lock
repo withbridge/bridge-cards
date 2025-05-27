@@ -835,6 +835,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "proc-macro2",
+ "solana-security-txt",
 ]
 
 [[package]]
