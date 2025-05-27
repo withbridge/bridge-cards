@@ -26,7 +26,7 @@ pub mod state;
 use anchor_lang::prelude::*;
 pub use instructions::*;
 #[cfg(not(feature = "no-entrypoint"))]
-use {solana_security_txt::security_txt};
+use solana_security_txt::security_txt;
 
 // Program ID for the Bridge Cards program
 declare_id!("E7vM2tFMoHU49pqTgaoGDcCRAFGYs2w6rKPsRQJuukgA");
