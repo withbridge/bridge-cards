@@ -29,7 +29,7 @@ pub use instructions::*;
 use solana_security_txt::security_txt;
 
 // Program ID for the Bridge Cards program
-declare_id!("E7vM2tFMoHU49pqTgaoGDcCRAFGYs2w6rKPsRQJuukgA");
+declare_id!("cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2");
 
 #[cfg(not(feature = "no-entrypoint"))]
 security_txt! {

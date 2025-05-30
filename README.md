@@ -41,6 +41,15 @@ The program ensures all operations respect the established permission hierarchy 
 - Anchor `0.31.0`
 - Solana `2.1.18`
 
+## Deployments
+
+_This program is currently deployed to the following networks and accounts_
+
+| Network        | Account                                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Devnet         | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2?cluster=devnet) |
+| Mainnet (beta) | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2)                |
+
 ## Flow Diagram
 
 ![Flow Diagram](./media/flow.svg)
