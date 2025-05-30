@@ -7,11 +7,15 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
+
 [programs.localnet]
-bridge_cards = "E7vM2tFMoHU49pqTgaoGDcCRAFGYs2w6rKPsRQJuukgA"
+bridge_cards = "cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2"
 
 [programs.devnet]
-bridge_cards = "E7vM2tFMoHU49pqTgaoGDcCRAFGYs2w6rKPsRQJuukgA"
+bridge_cards = "cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2"
+
+[programs.mainnet]
+bridge_cards = "cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2"
 
 [registry]
 url = "https://api.apr.dev"
