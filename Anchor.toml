@@ -7,10 +7,11 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-[programs.devnet]
-bridge_cards = "cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2"
 
 [programs.localnet]
+bridge_cards = "cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2"
+
+[programs.devnet]
 bridge_cards = "cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2"
 
 [programs.mainnet]
@@ -34,8 +35,6 @@ wallet = "~/.config/solana/id.json"
 url = "http://127.0.0.1:8899"
 
 [scripts]
-build = "export PROGRAM_ID=$(solana-keygen pubkey program-keypair.json) && anchor build"
-initialize = "ts-node scripts/initialize.ts"
 test = "cargo test"
 initialize = "ts-node scripts/initialize.ts"
 build = "export PROGRAM_ID=$(solana-keygen pubkey program-keypair.json) && anchor build"
