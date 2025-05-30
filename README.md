@@ -179,7 +179,7 @@ class BridgeSDK {
   }
 }
 
-const PROGRAM_ID = new PublicKey("BridgezraVX3m1y7VGCV6tsL7nE6B2R92qx9"); // Replace with your Program ID
+const PROGRAM_ID = new PublicKey("cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2");
 
 // USDC MINT
 const MINT_PUBKEY = new PublicKey(
