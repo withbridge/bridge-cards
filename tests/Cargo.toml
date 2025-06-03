@@ -16,7 +16,9 @@ spl-associated-token-account-client = "2.0.0"
 spl-token-2022 = "4.0.0"
 tokio = { version = "1", features = ["full"] }
 paste = "1.0"
-bridge_cards = { path = "../programs/bridge_cards", features = ["local"] }
+bridge_cards = { path = "../programs/bridge_cards", features = [
+  "no-entrypoint",
+] }
 anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
 anchor-spl = "0.31.0"
 account-data-trait = { path = "../account-data-trait" }
