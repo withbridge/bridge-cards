@@ -16,6 +16,7 @@ spl-associated-token-account-client = "2.0.0"
 spl-token-2022 = "4.0.0"
 tokio = { version = "1", features = ["full"] }
 paste = "1.0"
+# Do not load entrypoint in tests -- this ensures we will not have conflicts with the token22 program's security entrypoint.
 bridge_cards = { path = "../programs/bridge_cards", features = [
   "no-entrypoint",
 ] }
