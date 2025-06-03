@@ -3,8 +3,7 @@ use crate::instructions::initialize::STATE_SEED;
 use crate::state::{BridgeCardsState, MerchantDestinationState};
 use crate::ID;
 use anchor_lang::prelude::*;
-use anchor_spl::token::TokenAccount;
-use anchor_spl::token_interface::Mint;
+use anchor_spl::token_interface::{Mint, TokenAccount};
 
 /// Seed used to derive merchant destination PDAs
 pub const MERCHANT_DESTINATION_SEED: &[u8] = b"merchant_destination";
@@ -90,7 +89,7 @@ pub struct AddOrUpdateMerchantDestination<'info> {
     /// Must use the specified mint
     /// Required permissions: None (read-only validation)
     #[account(constraint = destination_token_account.mint.key() == mint.key())]
-    pub destination_token_account: Account<'info, TokenAccount>,
+    pub destination_token_account: InterfaceAccount<'info, TokenAccount>,
 
     /// Mint of the destination token account
     /// Used for PDA derivation and account validation

@@ -9,12 +9,31 @@ use litesvm_token::*;
 use solana_program_test::tokio;
 use solana_sdk::signature::{Keypair, Signer};
 
+type TestContext = crate::common::Context;
+
 const TEST_MERCHANT_ID: u64 = 1u64;
 const MAX_TRANSFER_LIMIT: u64 = 100_000_000; // $100 per transaction
 const PERIOD_TRANSFER_LIMIT: u64 = 2_000_000_000; // $2000 per day
 const INITIAL_BALANCE: u64 = 5_000_000_000; // $5000 initial balance
 const DEBIT_AMOUNT: u64 = 50_000_000; // $50 debit amount
 const LIMIT_PERIOD: u32 = 86400; // 1 day in seconds
+
+// Macro to generate parameterized tests for both TOKEN and TOKEN22 programs.
+macro_rules! parameterized_token_test {
+    ($test_name:ident, $test_body:expr) => {
+        paste::paste! {
+            #[tokio::test]
+            async fn [<$test_name _token>]() {
+                ($test_body)(TokenProgram::Token).await;
+            }
+
+            #[tokio::test]
+            async fn [<$test_name _token22>]() {
+                ($test_body)(TokenProgram::Token2022).await;
+            }
+        }
+    };
+}
 
 struct DebitUserContext {
     mint_pk: Pubkey,
@@ -25,15 +44,30 @@ struct DebitUserContext {
     user_token_account: Pubkey,
     destination_token_account: Pubkey,
     user_delegate_pda: Pubkey,
+    token_program: TokenProgram,
 }
 
 fn setup_merchant_and_user_delegate(
-    ctx: &mut crate::common::Context,
+    ctx: &mut TestContext,
     max_transfer_limit: u64,
     period_transfer_limit: u64,
 ) -> DebitUserContext {
+    setup_merchant_and_user_delegate_with_program(
+        ctx,
+        max_transfer_limit,
+        period_transfer_limit,
+        TokenProgram::Token,
+    )
+}
+
+fn setup_merchant_and_user_delegate_with_program(
+    ctx: &mut TestContext,
+    max_transfer_limit: u64,
+    period_transfer_limit: u64,
+    token_program: TokenProgram,
+) -> DebitUserContext {
     // Create a token mint
-    let (_, mint_pk) = setup_mint(ctx);
+    let mint_pk = setup_mint_with_program(ctx, token_program);
 
     // Setup merchant
     let (debitor_kp, debitor_pk) = setup_keypair(ctx);
@@ -124,16 +158,42 @@ fn setup_merchant_and_user_delegate(
         user_token_account,
         destination_token_account,
         user_delegate_pda: user_delegate_pda.pubkey,
+        token_program,
     }
 }
 
-#[tokio::test]
-async fn test_debit_user_successful() {
+/// Helper function to verify token account balance based on token program
+fn verify_token_account_balance(
+    ctx: &TestContext,
+    token_account: &Pubkey,
+    expected_amount: u64,
+    token_program: TokenProgram,
+    error_msg: &str,
+) {
+    match token_program {
+        TokenProgram::Token => {
+            let account_info = get_spl_account::<spl_token::state::Account>(&ctx.svm, token_account)
+                .unwrap();
+            assert_eq!(account_info.amount, expected_amount, "{}", error_msg);
+        }
+        TokenProgram::Token2022 => {
+            let account_info = get_spl_account::<spl_token_2022::state::Account>(&ctx.svm, token_account)
+                .unwrap();
+            assert_eq!(account_info.amount, expected_amount, "{}", error_msg);
+        }
+    }
+}
+
+parameterized_token_test!(test_debit_user_successful, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create the debit user instruction
     let debit_accounts = DebitUser {
@@ -146,11 +206,16 @@ async fn test_debit_user_successful() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -173,24 +238,21 @@ async fn test_debit_user_successful() {
     );
 
     // Verify user token account balance decreased
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount,
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
         INITIAL_BALANCE - DEBIT_AMOUNT,
-        "User token account balance incorrect"
+        token_program,
+        "User token account balance incorrect",
     );
 
     // Verify destination token account balance increased
-    let destination_token_account_info = get_spl_account::<spl_token::state::Account>(
-        &ctx.svm,
+    verify_token_account_balance(
+        &ctx,
         &debit_context.destination_token_account,
-    )
-    .unwrap();
-    assert_eq!(
-        destination_token_account_info.amount, DEBIT_AMOUNT,
-        "Destination token account balance incorrect"
+        DEBIT_AMOUNT,
+        token_program,
+        "Destination token account balance incorrect",
     );
 
     // Verify user delegate state was updated
@@ -205,15 +267,18 @@ async fn test_debit_user_successful() {
         user_delegate_state.period_transferred_amount, DEBIT_AMOUNT,
         "User delegate transferred amount incorrect"
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_exceeds_max_limit() {
+parameterized_token_test!(test_debit_user_exceeds_max_limit, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Try to debit more than the max transfer limit
     let debit_accounts = DebitUser {
@@ -226,12 +291,17 @@ async fn test_debit_user_exceeds_max_limit() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
     let excessive_amount = MAX_TRANSFER_LIMIT + 1;
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, excessive_amount);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        excessive_amount,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -260,22 +330,25 @@ async fn test_debit_user_exceeds_max_limit() {
     );
 
     // Verify user token account balance remains unchanged
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount, INITIAL_BALANCE,
-        "User token account balance should remain unchanged"
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
+        INITIAL_BALANCE,
+        token_program,
+        "User token account balance should remain unchanged",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_non_merchant_debitor() {
+parameterized_token_test!(test_debit_user_non_merchant_debitor, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create a different signer (not the merchant's debitor)
     let (non_debitor_kp, non_debitor_pk) = setup_keypair(&mut ctx);
@@ -291,11 +364,16 @@ async fn test_debit_user_non_merchant_debitor() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -311,22 +389,25 @@ async fn test_debit_user_non_merchant_debitor() {
     );
 
     // Verify user token account balance remains unchanged
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount, INITIAL_BALANCE,
-        "User token account balance should remain unchanged"
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
+        INITIAL_BALANCE,
+        token_program,
+        "User token account balance should remain unchanged",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_period_limit_reset() {
+parameterized_token_test!(test_debit_user_period_limit_reset, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create the debit accounts
     let debit_accounts = DebitUser {
@@ -339,12 +420,17 @@ async fn test_debit_user_period_limit_reset() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
     // First debit
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -366,8 +452,13 @@ async fn test_debit_user_period_limit_reset() {
     );
 
     // Second debit after period reset
-    let debit_ix2 =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix2 = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx2 = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix2],
@@ -386,7 +477,6 @@ async fn test_debit_user_period_limit_reset() {
 
     // Verify the log message for second debit
     let meta2 = result2.unwrap();
-    // let expected_log = "Instruction: DebitUser"; // Already defined
     assert!(
         meta2.logs.iter().any(|log| log.contains(expected_log)),
         "Expected log containing '{}' for second debit not found: {}",
@@ -395,13 +485,12 @@ async fn test_debit_user_period_limit_reset() {
     );
 
     // Verify user token account balance decreased by 2*DEBIT_AMOUNT
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount,
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
         INITIAL_BALANCE - (DEBIT_AMOUNT * 2),
-        "User token account balance incorrect after period reset"
+        token_program,
+        "User token account balance incorrect after period reset",
     );
 
     // Verify user delegate state was reset
@@ -416,15 +505,18 @@ async fn test_debit_user_period_limit_reset() {
         user_delegate_state.period_transferred_amount, DEBIT_AMOUNT,
         "User delegate transferred amount should be reset and then incremented again"
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_exceeds_period_limit() {
+parameterized_token_test!(test_debit_user_exceeds_period_limit, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, PERIOD_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        PERIOD_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create the debit accounts
     let debit_accounts = DebitUser {
@@ -437,13 +529,18 @@ async fn test_debit_user_exceeds_period_limit() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
     // First debit - half of period limit
     let first_amount = PERIOD_TRANSFER_LIMIT / 2;
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, first_amount);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        first_amount,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -460,8 +557,13 @@ async fn test_debit_user_exceeds_period_limit() {
 
     // Second debit - should exceed period limit
     let second_amount = (PERIOD_TRANSFER_LIMIT / 2) + 1;
-    let debit_ix2 =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, second_amount);
+    let debit_ix2 = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        second_amount,
+        token_program,
+    );
     let debit_tx2 = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix2],
@@ -489,23 +591,25 @@ async fn test_debit_user_exceeds_period_limit() {
     );
 
     // Verify user token account balance only reflects the first debit
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount,
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
         INITIAL_BALANCE - first_amount,
-        "User token account balance should only reflect the first debit"
+        token_program,
+        "User token account balance should only reflect the first debit",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_incorrect_merchant_id() {
+parameterized_token_test!(test_debit_user_incorrect_merchant_id, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create the debit accounts but use incorrect merchant_id
     let debit_accounts = DebitUser {
@@ -518,13 +622,18 @@ async fn test_debit_user_incorrect_merchant_id() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
     // Use incorrect merchant_id (different from TEST_MERCHANT_ID)
     let incorrect_merchant_id = TEST_MERCHANT_ID + 1;
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, incorrect_merchant_id, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        incorrect_merchant_id,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -540,22 +649,25 @@ async fn test_debit_user_incorrect_merchant_id() {
     );
 
     // Verify user token account balance remains unchanged
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount, INITIAL_BALANCE,
-        "User token account balance should remain unchanged"
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
+        INITIAL_BALANCE,
+        token_program,
+        "User token account balance should remain unchanged",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_invalid_destination() {
+parameterized_token_test!(test_debit_user_invalid_destination, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create a different destination token account
     let (_, invalid_destination_pk) = setup_keypair(&mut ctx);
@@ -579,11 +691,16 @@ async fn test_debit_user_invalid_destination() {
         destination_token_account: invalid_destination_token_account, // Wrong destination
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -599,17 +716,16 @@ async fn test_debit_user_invalid_destination() {
     );
 
     // Verify user token account balance remains unchanged
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount, INITIAL_BALANCE,
-        "User token account balance should remain unchanged"
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
+        INITIAL_BALANCE,
+        token_program,
+        "User token account balance should remain unchanged",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_insufficient_balance() {
+parameterized_token_test!(test_debit_user_insufficient_balance, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
@@ -617,7 +733,7 @@ async fn test_debit_user_insufficient_balance() {
     let small_initial_balance = DEBIT_AMOUNT / 2; // Half of the debit amount
 
     // Setup merchant and user delegate with custom balance
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint_with_program(&mut ctx, token_program);
     let (debitor_kp, debitor_pk) = setup_keypair(&mut ctx);
     let (_, destination_pk) = setup_keypair(&mut ctx);
     let destination_token_account =
@@ -629,8 +745,12 @@ async fn test_debit_user_insufficient_balance() {
     // Save payer details before mutable borrows
     let payer_pk = ctx.payer_pk;
     let payer_kp = ctx.payer_kp.insecure_clone();
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create user with small balance
     let (user_kp, user_pk) = setup_keypair(&mut ctx);
@@ -708,11 +828,16 @@ async fn test_debit_user_insufficient_balance() {
         destination_token_account,
         mint: mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -728,24 +853,28 @@ async fn test_debit_user_insufficient_balance() {
     );
 
     // Verify user token account balance remains unchanged
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &user_token_account).unwrap();
-    assert_eq!(
-        user_token_account_info.amount, small_initial_balance,
-        "User token account balance should remain unchanged"
+    verify_token_account_balance(
+        &ctx,
+        &user_token_account,
+        small_initial_balance,
+        token_program,
+        "User token account balance should remain unchanged",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_incorrect_mint() {
+parameterized_token_test!(test_debit_user_incorrect_mint, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create a different mint
-    let (_, different_mint_pk) = setup_mint(&mut ctx);
+    let different_mint_pk = setup_mint_with_program(&mut ctx, token_program);
 
     // Try to debit with incorrect mint
     let debit_accounts = DebitUser {
@@ -758,11 +887,16 @@ async fn test_debit_user_incorrect_mint() {
         destination_token_account: debit_context.destination_token_account,
         mint: different_mint_pk, // Wrong mint
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -778,22 +912,25 @@ async fn test_debit_user_incorrect_mint() {
     );
 
     // Verify user token account balance remains unchanged
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount, INITIAL_BALANCE,
-        "User token account balance should remain unchanged"
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
+        INITIAL_BALANCE,
+        token_program,
+        "User token account balance should remain unchanged",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_exact_period_boundary() {
+parameterized_token_test!(test_debit_user_exact_period_boundary, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, PERIOD_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        PERIOD_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create the debit accounts
     let debit_accounts = DebitUser {
@@ -806,13 +943,18 @@ async fn test_debit_user_exact_period_boundary() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
     // First debit - half of period limit
     let first_amount = PERIOD_TRANSFER_LIMIT / 2;
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, first_amount);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        first_amount,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -828,8 +970,13 @@ async fn test_debit_user_exact_period_boundary() {
     ctx.svm.set_sysvar(&new_clock);
 
     // Second debit - should work because we're exactly at the period boundary
-    let debit_ix2 =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, first_amount);
+    let debit_ix2 = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        first_amount,
+        token_program,
+    );
     let debit_tx2 = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix2],
@@ -855,23 +1002,25 @@ async fn test_debit_user_exact_period_boundary() {
     );
 
     // Verify user token account balance decreased by 2*first_amount
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount,
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
         INITIAL_BALANCE - (first_amount * 2),
-        "User token account balance incorrect after period boundary reset"
+        token_program,
+        "User token account balance incorrect after period boundary reset",
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_multiple_transactions_within_period() {
+parameterized_token_test!(test_debit_user_multiple_transactions_within_period, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create the debit accounts
     let debit_accounts = DebitUser {
@@ -884,7 +1033,7 @@ async fn test_debit_user_multiple_transactions_within_period() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
     // Perform multiple small debits within the period
@@ -899,11 +1048,12 @@ async fn test_debit_user_multiple_transactions_within_period() {
     );
 
     for i in 0..num_transactions {
-        let debit_ix = create_debit_user_instruction(
+        let debit_ix = create_debit_user_instruction_with_program(
             &ctx,
             &debit_accounts,
             TEST_MERCHANT_ID,
             debit_amount_small,
+            token_program,
         );
         let debit_tx = create_transaction_with_payer_and_signers(
             &ctx,
@@ -939,13 +1089,12 @@ async fn test_debit_user_multiple_transactions_within_period() {
     }
 
     // Verify user token account balance decreased by total amount
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount,
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
         INITIAL_BALANCE - total_debit_amount,
-        "User token account balance incorrect after multiple transactions"
+        token_program,
+        "User token account balance incorrect after multiple transactions",
     );
 
     // Verify user delegate state accumulated all transactions
@@ -960,15 +1109,18 @@ async fn test_debit_user_multiple_transactions_within_period() {
         user_delegate_state.period_transferred_amount, total_debit_amount,
         "User delegate transferred amount should accumulate all transactions"
     );
-}
+});
 
-#[tokio::test]
-async fn test_debit_user_same_slot() {
+parameterized_token_test!(test_debit_user_same_slot, |token_program: TokenProgram| async move {
     // Setup the test environment
     let mut ctx = setup_and_initialize();
 
-    let debit_context =
-        setup_merchant_and_user_delegate(&mut ctx, MAX_TRANSFER_LIMIT, PERIOD_TRANSFER_LIMIT);
+    let debit_context = setup_merchant_and_user_delegate_with_program(
+        &mut ctx,
+        MAX_TRANSFER_LIMIT,
+        PERIOD_TRANSFER_LIMIT,
+        token_program,
+    );
 
     // Create the debit accounts
     let debit_accounts = DebitUser {
@@ -981,12 +1133,17 @@ async fn test_debit_user_same_slot() {
         destination_token_account: debit_context.destination_token_account,
         mint: debit_context.mint_pk,
         system_program: System::id(),
-        token_program: spl_token::id(),
+        token_program: token_program.program_id(),
     };
 
     // First debit
-    let debit_ix =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix],
@@ -998,8 +1155,13 @@ async fn test_debit_user_same_slot() {
     assert!(result1.is_ok(), "First debit failed: {:?}", result1.err());
 
     // Second debit in same slot
-    let debit_ix2 =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix2 = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx2 = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix2],
@@ -1028,13 +1190,12 @@ async fn test_debit_user_same_slot() {
     );
 
     // Verify user token account balance only reflects the first debit
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount,
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
         INITIAL_BALANCE - DEBIT_AMOUNT,
-        "User token account balance should only reflect the first debit"
+        token_program,
+        "User token account balance should only reflect the first debit",
     );
 
     // Third debit in different slot should succeed
@@ -1042,8 +1203,13 @@ async fn test_debit_user_same_slot() {
     new_clock.slot += 1;
     ctx.svm.set_sysvar(&new_clock);
 
-    let debit_ix3 =
-        create_debit_user_instruction(&ctx, &debit_accounts, TEST_MERCHANT_ID, DEBIT_AMOUNT);
+    let debit_ix3 = create_debit_user_instruction_with_program(
+        &ctx,
+        &debit_accounts,
+        TEST_MERCHANT_ID,
+        DEBIT_AMOUNT,
+        token_program,
+    );
     let debit_tx3 = create_transaction_with_payer_and_signers(
         &ctx,
         &[debit_ix3],
@@ -1059,12 +1225,11 @@ async fn test_debit_user_same_slot() {
     );
 
     // Verify final balance reflects two successful debits
-    let user_token_account_info =
-        get_spl_account::<spl_token::state::Account>(&ctx.svm, &debit_context.user_token_account)
-            .unwrap();
-    assert_eq!(
-        user_token_account_info.amount,
+    verify_token_account_balance(
+        &ctx,
+        &debit_context.user_token_account,
         INITIAL_BALANCE - (DEBIT_AMOUNT * 2),
-        "User token account balance should reflect two successful debits"
+        token_program,
+        "User token account balance should reflect two successful debits",
     );
-}
+});

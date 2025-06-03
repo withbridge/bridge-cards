@@ -18,7 +18,7 @@ async fn test_create_user_delegate() {
     let mut ctx = setup_and_initialize();
 
     // Step 2: Create a token mint and accounts
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
 
     // Create user and their token account
     let (_, user_pk) = setup_keypair(&mut ctx);
@@ -132,7 +132,7 @@ async fn test_non_manager_cannot_create_user_delegate() {
     let (non_manager_kp, non_manager_pk) = setup_keypair(&mut ctx);
 
     // Step 3: Create a token mint and accounts
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
 
     // Create user and their token account
     let (_, user_pk) = setup_keypair(&mut ctx);
@@ -201,7 +201,7 @@ async fn test_update_user_delegate() {
     let mut ctx = setup_and_initialize();
 
     // Step 2: Create a token mint and accounts
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
 
     // Create user and their token account
     let (_, user_pk) = setup_keypair(&mut ctx);

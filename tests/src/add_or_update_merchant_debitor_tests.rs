@@ -18,7 +18,7 @@ async fn test_add_merchant_debitor() {
 
     // Step 2: Create a token mint and accounts
     let (_, debitor_pk) = setup_keypair(&mut ctx);
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
 
     // Step 3: Create the merchant account
     let debitor_pda =
@@ -100,7 +100,7 @@ async fn test_add_second_debitor() {
 
     // Step 2: Create a token mint and accounts
     let (_, debitor_pk) = setup_keypair(&mut ctx);
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
 
     // First create the merchant
     let debitor_pda =
@@ -156,7 +156,7 @@ async fn test_add_second_debitor() {
 
     // Step 3: Now update the merchant with new debitor
     let (_, new_debitor_pk) = setup_keypair(&mut ctx);
-    let (_, new_mint_pk) = setup_mint(&mut ctx);
+    let new_mint_pk = setup_mint(&mut ctx);
     let new_debitor_pda = make_merchant_debitor_pda(
         TEST_MERCHANT_ID,
         &new_debitor_pk,
@@ -241,7 +241,7 @@ async fn test_update_debitor_to_false_then_back() {
     let mut ctx = setup_and_initialize();
 
     let (_, debitor_pk) = setup_keypair(&mut ctx);
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
 
     let debitor_pda =
         make_merchant_debitor_pda(TEST_MERCHANT_ID, &debitor_pk, &mint_pk, &ctx.program_id);
@@ -374,7 +374,7 @@ async fn test_non_manager_cannot_add_debitor() {
 
     // Step 3: Create a token mint and accounts
     let (_, debitor_pk) = setup_keypair(&mut ctx);
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
 
     // Try to create the merchant with non-manager
     let debitor_pda =

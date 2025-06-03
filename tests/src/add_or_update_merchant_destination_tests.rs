@@ -16,7 +16,7 @@ async fn test_create_merchant_destination() {
     let mut ctx = setup_and_initialize();
 
     // Step 2: Create a token mint and accounts
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
     let merchant_id = 1u64;
     let (_, destination_owner_pk) = setup_keypair(&mut ctx);
 
@@ -117,7 +117,7 @@ async fn test_update_merchant_destination() {
     let mut ctx = setup_and_initialize();
 
     // Step 2: Create a token mint and accounts
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
     let merchant_id = 2u64;
     let (_, destination_pk) = setup_keypair(&mut ctx);
 
@@ -273,7 +273,7 @@ async fn test_non_admin_cannot_create_merchant() {
     let (non_admin_kp, non_admin_pk) = setup_keypair(&mut ctx);
 
     // Step 3: Create a token mint and accounts
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
     let merchant_id = 3u64;
     let (_, destination_owner_pk) = setup_keypair(&mut ctx);
 
@@ -333,7 +333,7 @@ async fn test_two_merchant_destinations() {
     let mut ctx = setup_and_initialize();
 
     let merchant_id = 4u64;
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
     let (_, destination_pk) = setup_keypair(&mut ctx);
 
     // Create token accounts for the destination

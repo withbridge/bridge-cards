@@ -7,13 +7,15 @@ edition = "2021"
 anchor-client = "0.31.0"
 bincode = "2.0.1"
 litesvm = "0.6.0"
-litesvm-token = "0.6.0"
+litesvm-token = { version = "0.6.0", features = ["token-2022"] }
 serde = "1.0.219"
 solana-account = "2.2.1"
 solana-program-test = "2.2.2"
 solana-sdk = "2.2.1"
 spl-associated-token-account-client = "2.0.0"
+spl-token-2022 = "4.0.0"
 tokio = { version = "1", features = ["full"] }
+paste = "1.0"
 bridge_cards = { path = "../programs/bridge_cards", features = ["local"] }
 anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
 anchor-spl = "0.31.0"

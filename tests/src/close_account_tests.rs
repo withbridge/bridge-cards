@@ -19,7 +19,7 @@ async fn test_close_account_success() {
 
     // Create a merchant debitor account to close
     let (debitor_kp, debitor_pk) = setup_keypair(&mut ctx);
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
     let debitor_pda =
         make_merchant_debitor_pda(TEST_MERCHANT_ID, &debitor_pk, &mint_pk, &ctx.program_id);
 
@@ -136,7 +136,7 @@ async fn test_close_account_not_admin() {
 
     // Create a merchant debitor account to close
     let (debitor_kp, debitor_pk) = setup_keypair(&mut ctx);
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
     let debitor_pda =
         make_merchant_debitor_pda(TEST_MERCHANT_ID, &debitor_pk, &mint_pk, &ctx.program_id);
 
@@ -219,7 +219,7 @@ async fn test_close_account_invalid_pda() {
 
     // Create a merchant debitor account to close
     let (debitor_kp, debitor_pk) = setup_keypair(&mut ctx);
-    let (_, mint_pk) = setup_mint(&mut ctx);
+    let mint_pk = setup_mint(&mut ctx);
     let debitor_pda =
         make_merchant_debitor_pda(TEST_MERCHANT_ID, &debitor_pk, &mint_pk, &ctx.program_id);
 
