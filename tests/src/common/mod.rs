@@ -448,7 +448,13 @@ pub fn create_debit_user_instruction(
     merchant_id: u64,
     amount: u64,
 ) -> Instruction {
-    create_debit_user_instruction_with_program(ctx, accounts, merchant_id, amount, TokenProgram::Token)
+    create_debit_user_instruction_with_program(
+        ctx,
+        accounts,
+        merchant_id,
+        amount,
+        TokenProgram::Token,
+    )
 }
 
 pub fn create_debit_user_instruction_with_program(
@@ -458,7 +464,11 @@ pub fn create_debit_user_instruction_with_program(
     amount: u64,
     _token_program: TokenProgram,
 ) -> Instruction {
-    let ix_data = bridge_cards::instruction::DebitUser { merchant_id, amount }.data();
+    let ix_data = bridge_cards::instruction::DebitUser {
+        merchant_id,
+        amount,
+    }
+    .data();
 
     Instruction {
         program_id: ctx.program_id,
