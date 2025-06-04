@@ -7,14 +7,19 @@ edition = "2021"
 anchor-client = "0.31.0"
 bincode = "2.0.1"
 litesvm = "0.6.0"
-litesvm-token = "0.6.0"
+litesvm-token = { version = "0.6.0", features = ["token-2022"] }
 serde = "1.0.219"
 solana-account = "2.2.1"
 solana-program-test = "2.2.2"
 solana-sdk = "2.2.1"
 spl-associated-token-account-client = "2.0.0"
+spl-token-2022 = "4.0.0"
 tokio = { version = "1", features = ["full"] }
-bridge_cards = { path = "../programs/bridge_cards", features = ["local"] }
+paste = "1.0"
+# Do not load entrypoint in tests -- this ensures we will not have conflicts with the token22 program's security entrypoint.
+bridge_cards = { path = "../programs/bridge_cards", features = [
+  "no-entrypoint",
+] }
 anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
 anchor-spl = "0.31.0"
 account-data-trait = { path = "../account-data-trait" }

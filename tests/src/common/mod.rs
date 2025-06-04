@@ -13,14 +13,25 @@ use bridge_cards::instructions::add_or_update_merchant_manager::MERCHANT_MANAGER
 use bridge_cards::instructions::add_or_update_user_delegate::USER_DELEGATE_SEED;
 use litesvm::types::TransactionResult;
 use litesvm::LiteSVM;
-use litesvm_token::spl_token::{self, state::Mint as MintState};
-use litesvm_token::CreateAssociatedTokenAccountIdempotent;
-use solana_account::Account;
-use solana_sdk::program_pack::Pack;
-use solana_sdk::signature::Keypair;
-use solana_sdk::signature::Signer;
+use litesvm_token::*;
+use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TokenProgram {
+    Token,
+    Token2022,
+}
+
+impl TokenProgram {
+    pub fn program_id(&self) -> Pubkey {
+        match self {
+            TokenProgram::Token => spl_token::id(),
+            TokenProgram::Token2022 => spl_token_2022::id(),
+        }
+    }
+}
 
 pub struct Context {
     pub svm: LiteSVM,
@@ -203,37 +214,17 @@ pub fn setup_keypair(ctx: &mut Context) -> (Keypair, Pubkey) {
     (keypair, pubkey)
 }
 
-pub fn setup_mint(ctx: &mut Context) -> (Keypair, Pubkey) {
-    let mint_kp = Keypair::new();
-    let mint_pk = mint_kp.pubkey();
+pub fn setup_mint(ctx: &mut Context) -> Pubkey {
+    // Use default token program.
+    setup_mint_with_program(ctx, TokenProgram::Token)
+}
 
-    // Setup mint with 6 decimals
-    let mint = MintState {
-        mint_authority: Some(ctx.payer_pk).into(),
-        supply: 0,
-        decimals: 6,
-        is_initialized: true,
-        freeze_authority: Some(ctx.payer_pk).into(),
-    };
-
-    let mut mint_data = vec![0u8; MintState::get_packed_len()];
-    MintState::pack(mint, &mut mint_data).unwrap();
-
-    // Create mint account
-    ctx.svm
-        .set_account(
-            mint_pk,
-            Account {
-                lamports: 1_000_000_000,
-                data: mint_data,
-                owner: spl_token::id(),
-                executable: false,
-                rent_epoch: 0,
-            },
-        )
-        .unwrap();
-
-    (mint_kp, mint_pk)
+pub fn setup_mint_with_program(ctx: &mut Context, token_program: TokenProgram) -> Pubkey {
+    CreateMint::new(&mut ctx.svm, &ctx.payer_kp)
+        .token_program_id(&token_program.program_id())
+        .decimals(6)
+        .send()
+        .unwrap()
 }
 
 pub fn make_merchant_debitor_pda(
@@ -287,11 +278,31 @@ pub fn setup_merchant_debitor_and_destination(
     mint_pk: &Pubkey,
     destination_owner: &Pubkey,
 ) -> (Pubkey, Pubkey, Pubkey) {
+    setup_merchant_debitor_and_destination_with_program(
+        ctx,
+        merchant_id,
+        debitor_pk,
+        mint_pk,
+        destination_owner,
+        // Use default token program.
+        TokenProgram::Token,
+    )
+}
+
+pub fn setup_merchant_debitor_and_destination_with_program(
+    ctx: &mut Context,
+    merchant_id: u64,
+    debitor_pk: Pubkey,
+    mint_pk: &Pubkey,
+    destination_owner: &Pubkey,
+    token_program: TokenProgram,
+) -> (Pubkey, Pubkey, Pubkey) {
     let debitor_pda = make_merchant_debitor_pda(merchant_id, &debitor_pk, mint_pk, &ctx.program_id);
 
     let destination_token_account =
         CreateAssociatedTokenAccountIdempotent::new(&mut ctx.svm, &ctx.payer_kp, mint_pk)
             .owner(destination_owner)
+            .token_program_id(&token_program.program_id())
             .send()
             .unwrap();
 
@@ -436,6 +447,22 @@ pub fn create_debit_user_instruction(
     accounts: &DebitUser,
     merchant_id: u64,
     amount: u64,
+) -> Instruction {
+    create_debit_user_instruction_with_program(
+        ctx,
+        accounts,
+        merchant_id,
+        amount,
+        TokenProgram::Token,
+    )
+}
+
+pub fn create_debit_user_instruction_with_program(
+    ctx: &Context,
+    accounts: &DebitUser,
+    merchant_id: u64,
+    amount: u64,
+    _token_program: TokenProgram,
 ) -> Instruction {
     let ix_data = bridge_cards::instruction::DebitUser {
         merchant_id,

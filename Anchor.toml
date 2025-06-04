@@ -35,6 +35,6 @@ wallet = "~/.config/solana/id.json"
 url = "http://127.0.0.1:8899"
 
 [scripts]
-test = "cargo test"
-initialize = "ts-node scripts/initialize.ts"
 build = "export PROGRAM_ID=$(solana-keygen pubkey program-keypair.json) && anchor build"
+initialize = "ts-node scripts/initialize.ts"
+test = "cargo test"
