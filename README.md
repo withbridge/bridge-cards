@@ -2,7 +2,7 @@
 
 ## Overview
 
-Bridge Cards is a Solana-based payment system that enables secure, pull-based token transfers between users and merchants.
+The Bridge Cards Program is a Solana-based payment system that enables secure, pull-based token transfers between users and merchants.
 
 This program was designed to power the [Bridge Cards](https://www.bridge.xyz/product/cards) product.
 
