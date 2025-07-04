@@ -2,30 +2,58 @@
 
 ## Overview
 
-The Bridge Cards program is a Solana-based payment delegation system that enables secure, controlled token transfers between users and merchants. It implements a hierarchical permission model with multiple participant roles and safety controls.
+The Bridge Cards Program is a Solana-based payment system that enables secure, pull-based token transfers between users and merchants.
 
-### Key Participants
+This program was designed to power the [Bridge Cards](https://www.bridge.xyz/product/cards) product.
+
+### How It Works
+
+The system allows users to grant spending permissions to merchants through a secure delegation mechanism:
+
+1. **Setup**: Merchants register with the system and configure their payment parameters.
+2. **User Approval**: Users approve specific spending limits for each merchant they want to transact with.
+3. **Automated Payments**: Merchants can then charge users automatically within the approved limits.
+
+### Key Benefits
+
+- **Seamless Payments**: Enable recurring payments without requiring user signatures for each transaction.
+- **Granular Control**: Adminsters can set per-transaction and time-period spending limits for each merchant/user pair.
+- **Enhanced Security**: Multi-level permission system with admin oversight and merchant controls.
+
+## Deployments
+
+| Network        | Account                                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mainnet (beta) | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2)                |
+| Devnet         | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2?cluster=devnet) |
+
+## Audits
+
+Bridge Cards was audited by [Zenith](https://zenith.security). You can find the report [here](/audits/Bridge-Cards-Zenith-Audit-Report.pdf).
+
+---
+
+# Developer Documentation
+
+## Architecture Overview
+
+The Bridge Cards program implements a hierarchical permission model with multiple participant roles and safety controls.
+
+### Participant Roles
 
 - **Admin**: Controls merchant manager permissions and destination accounts
 - **Merchant Manager**: Manages debitor permissions and user delegate settings for a specific merchant
 - **Debitor**: Entity authorized to initiate debits on behalf of a merchant
 - **User**: Token holder who grants spending permissions to token-and-merchant-specific delegate PDAs
 
-### Core Features
+### Program Derived Addresses (PDAs)
 
-- **Delegated Payments**: Users can pre-approve merchants to debit their accounts within specified limits
-- **Spending Controls**: Configurable per-transaction and time-period spending limits
-- **Hierarchical Permissions**: Multi-level authorization system for merchant operations
-- **Destination Management**: Controlled merchant token destination accounts
+The program uses PDAs to maintain secure state and enforce permissions:
 
-### Security Model
-
-The program uses Program Derived Addresses (PDAs) to maintain secure state and enforce permissions:
-
-- **MerchantManagerPDA**: Tracks authorized managers for each merchant
-- **MerchantDebitorPDA**: Controls which addresses can initiate debits
-- **MerchantDestinationPDA**: Manages approved token destination accounts
-- **UserDelegatePDA**: Stores and enforces user-specified spending limits
+- `MerchantManagerPDA`: Tracks authorized managers for each merchant
+- `MerchantDebitorPDA`: Controls which addresses can initiate debits
+- `MerchantDestinationPDA`: Manages approved token destination accounts
+- `UserDelegatePDA`: Stores and enforces user-specified spending limits
 
 ### Transaction Flow
 
@@ -33,22 +61,6 @@ The program uses Program Derived Addresses (PDAs) to maintain secure state and e
 2. Merchant managers configure debitors and delegate parameters
 3. Users approve delegate PDAs to spend from their token accounts
 4. Authorized debitors initiate transfers within configured limits
-
-The program ensures all operations respect the established permission hierarchy and spending limits.
-
-## Dependencies
-
-- Anchor `0.31.0`
-- Solana `2.1.18`
-
-## Deployments
-
-_This program is currently deployed to the following networks and accounts_
-
-| Network        | Account                                                                                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Devnet         | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2?cluster=devnet) |
-| Mainnet (beta) | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2)                |
 
 ## Flow Diagram
 
@@ -132,9 +144,11 @@ class UserDelegateState PDA {
 }
 ```
 
-## Example Client
+## Client Integration
 
-Interacting with the `bridge-card-program` is very straightforward, and can be done via a single instruction to approve a delegate. All other interactions will be administerd by Bridge.
+Interacting with the program is very straightforward, and can be done via a single instruction to approve a delegate. All other interactions will be administered by Bridge.
+
+### Typescript
 
 ```typescript
 import {
@@ -233,6 +247,104 @@ async function approveDelegate() {
 }
 
 approveDelegate();
+```
+
+### Rust
+
+```rust
+use solana_sdk::{
+    pubkey::Pubkey,
+    signature::Keypair,
+    transaction::Transaction,
+};
+use solana_client::rpc_client::RpcClient;
+use spl_token::instruction::approve;
+use std::str::FromStr;
+
+struct BridgeSDK {
+    program_id: Pubkey,
+}
+
+impl BridgeSDK {
+    const USER_DELEGATE_SEED: &'static [u8] = b"user_delegate";
+
+    pub fn new(program_id: Pubkey) -> Self {
+        Self { program_id }
+    }
+
+    pub fn find_user_delegate_pda(
+        &self,
+        merchant_id: u64,
+        mint_pubkey: &Pubkey,
+        user_ata: &Pubkey,
+    ) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[
+                Self::USER_DELEGATE_SEED,
+                &merchant_id.to_le_bytes(),
+                mint_pubkey.as_ref(),
+                user_ata.as_ref(),
+            ],
+            &self.program_id,
+        )
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let program_id = Pubkey::from_str("cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2")?;
+
+    // USDC MINT
+    let mint_pubkey = Pubkey::from_str("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr")?;
+
+    // Merchant ID -- this will be given to you by Bridge
+    let merchant_id: u64 = 1;
+
+    let mint_decimals = 6;
+    let approval_amount_ui = 100u64;
+    let approval_amount = approval_amount_ui * 10u64.pow(mint_decimals);
+
+    // Sample keypair
+    let user_keypair = Keypair::new();
+
+    // Get the user's associated token account for the given currency
+    let user_ata = spl_associated_token_account::get_associated_token_address(
+        &user_keypair.pubkey(),
+        &mint_pubkey,
+    );
+
+    let bridge_sdk = BridgeSDK::new(program_id);
+    let (delegate_pda, _bump) = bridge_sdk.find_user_delegate_pda(
+        merchant_id,
+        &mint_pubkey,
+        &user_ata,
+    );
+
+    // Create RPC client
+    let rpc_client = RpcClient::new("https://api.devnet.solana.com".to_string());
+
+    // Create approve instruction
+    let approve_instruction = approve(
+        &spl_token::ID,
+        &user_ata,
+        &delegate_pda,
+        &user_keypair.pubkey(),
+        &[],
+        approval_amount,
+    )?;
+
+    // Build and send transaction
+    let transaction = Transaction::new_signed_with_payer(
+        &[approve_instruction],
+        Some(&user_keypair.pubkey()),
+        &[&user_keypair],
+        rpc_client.get_latest_blockhash()?,
+    );
+
+    let signature = rpc_client.send_and_confirm_transaction(&transaction)?;
+    println!("Transaction signature: {}", signature);
+
+    Ok(())
+}
 ```
 
 ## Audits
