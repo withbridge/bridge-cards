@@ -148,6 +148,26 @@ class UserDelegateState PDA {
 
 Interacting with the program is very straightforward, and can be done via a single instruction to approve a delegate. All other interactions will be administered by Bridge.
 
+## Spend Controls
+
+The Bridge Cards program provides spend and velocity controls in addition to user-level delegate permissions.
+
+| Control Type | Parameter | Description | Example | Error Code |
+|--------------|-----------|-------------|---------|------------|
+| **Per-Transaction Limit** | `max_transfer_limit` | Maximum amount allowed in a single transaction | $100 = `100_000_000` | `ExceedsMaxTransferLimit` |
+| **Period Transfer Limit** | `period_transfer_limit` | Maximum cumulative amount within a time period | $2,000/day = `2_000_000_000` | `ExceedsTransferLimitPerPeriod` |
+| **Transfer Period Duration** | `transfer_limit_period` | Duration of spending period in seconds | 1 day = `86400` seconds | N/A |
+| **Slot Rate Limiting** | N/A (automatic) | Prevents multiple transactions per Solana slot | Only 1 transaction per slot | `ExceedsMaxTransactionsPerSlot` |
+
+### How Spend Controls Work
+
+- **Transaction Validation**: Every debit request is validated against all active limits
+- **Period Tracking**: The system tracks spending within rolling time windows
+- **Automatic Reset**: Period limits reset automatically when the time window expires
+- **Real-time Updates**: Amounts are updated immediately after successful transactions
+
+All spend controls are configured by the "merchant manager" when setting up user delegate accounts.
+
 ### Typescript
 
 ```typescript
