@@ -18,7 +18,7 @@ The system allows users to grant spending permissions to a card issuing merchant
 
 - **Seamless Payments**: Enable recurring payments without requiring user signatures for each transaction.
 - **Granular Control**: Adminsters can set per-transaction and time-period spending limits for each merchant/user pair.
-- **Enhanced Security**: Multi-level permission system with admin oversight and issuer-level controls.
+- **Enhanced Security**: Multi-level permission system with admin oversight and issuer-merchant-level controls.
 
 ## Deployments
 
