@@ -2,23 +2,23 @@
 
 ## Overview
 
-The Bridge Cards Program is a Solana-based payment system that enables secure, pull-based token transfers between users and merchants.
+The Bridge Cards Program is a Solana-based payment system that enables secure, pull-based token transfers between users and card issuing merchants.
 
 This program was designed to power the [Bridge Cards](https://www.bridge.xyz/product/cards) product.
 
 ### How It Works
 
-The system allows users to grant spending permissions to merchants through a secure delegation mechanism:
+The system allows users to grant spending permissions to a card issuing merchant through a secure delegation mechanism:
 
-1. **Setup**: Merchants register with the system and configure their payment parameters.
-2. **User Approval**: Users approve specific spending limits for each merchant they want to transact with.
-3. **Automated Payments**: Merchants can then charge users automatically within the approved limits.
+1. **Setup**: Card issuers register with the system and configure their payment parameters.
+2. **User Approval**: Users approve specific spending limits for each card issuer they want to transact with for a given wallet.
+3. **Automated Payments**: Card issuing merchants can then charge users automatically within the approved limits.
 
 ### Key Benefits
 
 - **Seamless Payments**: Enable recurring payments without requiring user signatures for each transaction.
 - **Granular Control**: Adminsters can set per-transaction and time-period spending limits for each merchant/user pair.
-- **Enhanced Security**: Multi-level permission system with admin oversight and merchant controls.
+- **Enhanced Security**: Multi-level permission system with admin oversight and issuer-merchant-level controls.
 
 ## Deployments
 
@@ -41,26 +41,26 @@ The Bridge Cards program implements a hierarchical permission model with multipl
 
 ### Participant Roles
 
-- **Admin**: Controls merchant manager permissions and destination accounts
-- **Merchant Manager**: Manages debitor permissions and user delegate settings for a specific merchant
-- **Debitor**: Entity authorized to initiate debits on behalf of a merchant
-- **User**: Token holder who grants spending permissions to token-and-merchant-specific delegate PDAs
+- **`Admin`**: Controls `merchant manager` permissions and destination accounts.
+- **`Merchant Manager`**: Manages `debitor` permissions and user delegate settings for a specific merchant.
+- **`Debitor`**: Entity authorized to initiate debits on behalf of a merchant.
+- **`User`**: Token holder who grants spending permissions to token-and-merchant-specific delegate PDAs.
 
 ### Program Derived Addresses (PDAs)
 
 The program uses PDAs to maintain secure state and enforce permissions:
 
-- `MerchantManagerPDA`: Tracks authorized managers for each merchant
-- `MerchantDebitorPDA`: Controls which addresses can initiate debits
-- `MerchantDestinationPDA`: Manages approved token destination accounts
-- `UserDelegatePDA`: Stores and enforces user-specified spending limits
+- `MerchantManagerPDA`: Tracks authorized managers for each card issuing merchant.
+- `MerchantDebitorPDA`: Controls which addresses can initiate debits.
+- `MerchantDestinationPDA`: Manages approved token destination accounts.
+- `UserDelegatePDA`: Stores and enforces user-specified spending limits.
 
 ### Transaction Flow
 
-1. Admin sets up merchant infrastructure
-2. Merchant managers configure debitors and delegate parameters
-3. Users approve delegate PDAs to spend from their token accounts
-4. Authorized debitors initiate transfers within configured limits
+1. `Admin` sets up configuration for the given card issuing merchant .
+2. `Merchant managers` configure debitors and delegate parameters.
+3. Users approve delegate PDAs to spend from their token accounts.
+4. Authorized `debitors` initiate transfers within configured limits.
 
 ## Flow Diagram
 
@@ -146,7 +146,9 @@ class UserDelegateState PDA {
 
 ## Client Integration
 
-Interacting with the program is very straightforward, and can be done via a single instruction to approve a delegate. All other interactions will be administered by Bridge.
+Interacting with the program is very straightforward, and can be done via a single instruction to approve a delegate.
+
+All other interactions will be administered by Bridge.
 
 ## Spend Controls
 
@@ -166,7 +168,7 @@ The Bridge Cards program provides spend and velocity controls in addition to use
 - **Automatic Reset**: Period limits reset automatically when the time window expires
 - **Real-time Updates**: Amounts are updated immediately after successful transactions
 
-All spend controls are configured by the "merchant manager" when setting up user delegate accounts.
+All spend controls are configured by the `merchant manager` when setting up user delegate accounts.
 
 ### Typescript
 
