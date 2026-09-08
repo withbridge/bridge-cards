@@ -91,6 +91,8 @@ pub struct CloseAccount<'info> {
  * @return Result indicating success or containing an error
  */
 pub fn handler(ctx: Context<CloseAccount>, input_seeds: Vec<Vec<u8>>) -> Result<()> {
+    require!(!ctx.accounts.state.migrated, ErrorCode::ProgramMigrated);
+
     let account_to_close = &ctx.accounts.account_to_close;
     let payer = &ctx.accounts.payer;
     let seeds_slices: Vec<&[u8]> = input_seeds.iter().map(|s| s.as_slice()).collect();

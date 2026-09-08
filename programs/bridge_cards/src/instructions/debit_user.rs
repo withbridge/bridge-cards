@@ -1,6 +1,7 @@
 use crate::events::UserDebited;
 use crate::instructions::add_or_update_user_delegate::USER_DELEGATE_SEED;
-use crate::state::{MerchantDebitorState, MerchantDestinationState, UserDelegateState};
+use crate::instructions::initialize::STATE_SEED;
+use crate::state::{BridgeCardsState, MerchantDebitorState, MerchantDestinationState, UserDelegateState};
 use crate::ID;
 use crate::{MERCHANT_DEBITOR_SEED, MERCHANT_DESTINATION_SEED};
 use anchor_lang::prelude::*;
@@ -41,6 +42,13 @@ pub struct DebitUser<'info> {
     /// Account that pays for the transaction fees and rent
     /// CHECK: Can be any account with sufficient SOL
     pub payer: Signer<'info>,
+
+    #[account(
+        seeds = [STATE_SEED],
+        bump = state.bump,
+        seeds::program = ID,
+    )]
+    pub state: Account<'info, BridgeCardsState>,
 
     /// Program Derived Address (PDA) that stores the delegate's transfer limits and state
     /// This account acts as the authority for the user's token account
@@ -115,6 +123,8 @@ pub struct DebitUser<'info> {
  * @return Result indicating success or containing an error
  */
 pub fn handler(ctx: Context<DebitUser>, merchant_id: u64, amount: u64) -> Result<()> {
+    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+
     // Validate transfer limits and update period tracking
     let clock = Clock::get()?;
     ctx.accounts

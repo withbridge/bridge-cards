@@ -1,5 +1,6 @@
 use crate::events::MerchantDebitorAddedOrUpdated;
-use crate::state::{MerchantDebitorState, MerchantManagerState};
+use crate::instructions::initialize::STATE_SEED;
+use crate::state::{BridgeCardsState, MerchantDebitorState, MerchantManagerState};
 use crate::{ID, MERCHANT_MANAGER_SEED};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
@@ -57,6 +58,13 @@ pub struct AddOrUpdateMerchantDebitor<'info> {
     /// Required permissions: Signer
     #[account(constraint = manager.key() == manager_state.manager)]
     pub manager: Signer<'info>,
+
+    #[account(
+        seeds = [STATE_SEED],
+        bump = state.bump,
+        seeds::program = ID,
+    )]
+    pub state: Account<'info, BridgeCardsState>,
 
     /// Account that will pay for PDA creation and rent
     /// Required permissions: Signer, Mutable (for rent payment)
@@ -124,6 +132,8 @@ pub fn handler(
     merchant_id: u64,
     allowed: bool,
 ) -> Result<()> {
+    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+
     let debitor_state = &mut ctx.accounts.debitor_state;
     let previous_state = debitor_state.allowed;
     debitor_state.allowed = allowed;

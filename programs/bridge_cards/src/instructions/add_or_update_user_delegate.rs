@@ -1,5 +1,6 @@
 use crate::events::UserDelegateAddedOrUpdated;
-use crate::state::{MerchantManagerState, UserDelegateState};
+use crate::instructions::initialize::STATE_SEED;
+use crate::state::{BridgeCardsState, MerchantManagerState, UserDelegateState};
 use crate::{ID, MERCHANT_MANAGER_SEED};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount};
@@ -60,6 +61,13 @@ pub struct AddOrUpdateUserDelegate<'info> {
     /// Required permissions: Signer
     #[account( constraint = manager.key() == manager_state.manager)]
     pub manager: Signer<'info>,
+
+    #[account(
+        seeds = [STATE_SEED],
+        bump = state.bump,
+        seeds::program = ID,
+    )]
+    pub state: Account<'info, BridgeCardsState>,
 
     /// Account that will pay for PDA creation and rent
     /// Required permissions: Signer, Mutable (for rent payment)
@@ -131,6 +139,8 @@ pub fn handler(
     period_transfer_limit: u64,
     transfer_limit_period: u32,
 ) -> Result<()> {
+    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+
     let user_delegate_account = &mut ctx.accounts.user_delegate_account;
 
     // Set the maximum amount allowed per transaction

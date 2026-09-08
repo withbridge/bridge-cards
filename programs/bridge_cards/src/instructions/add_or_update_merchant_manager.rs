@@ -110,6 +110,8 @@ pub struct AddOrUpdateMerchantManager<'info> {
  * @return Result indicating success or containing an error
  */
 pub fn handler(ctx: Context<AddOrUpdateMerchantManager>, merchant_id: u64) -> Result<()> {
+    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+
     let manager_state = &mut ctx.accounts.manager_state;
     manager_state.manager = ctx.accounts.manager.key();
     manager_state.bump = ctx.bumps.manager_state;

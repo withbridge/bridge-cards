@@ -21,6 +21,8 @@ pub struct BridgeCardsState {
     pub admin: Pubkey,
     // Bump seed used in PDA derivation
     pub bump: u8,
+    // When true, all instructions except cpi_transfer are disabled
+    pub migrated: bool,
 }
 
 /**

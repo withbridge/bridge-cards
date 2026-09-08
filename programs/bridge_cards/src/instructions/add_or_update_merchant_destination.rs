@@ -119,6 +119,8 @@ pub fn handler(
     merchant_id: u64,
     destination_allowed: bool,
 ) -> Result<()> {
+    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+
     let destination_state = &mut ctx.accounts.destination_state;
     let previous_state = destination_state.allowed;
     destination_state.allowed = destination_allowed;
