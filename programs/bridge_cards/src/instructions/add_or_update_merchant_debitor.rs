@@ -132,7 +132,10 @@ pub fn handler(
     merchant_id: u64,
     allowed: bool,
 ) -> Result<()> {
-    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+    require!(
+        !ctx.accounts.state.migrated,
+        crate::errors::ErrorCode::ProgramMigrated
+    );
 
     let debitor_state = &mut ctx.accounts.debitor_state;
     let previous_state = debitor_state.allowed;

@@ -63,7 +63,11 @@ pub fn handler(ctx: Context<CpiTransfer>, merchant_id: u64, amount: u64) -> Resu
         USER_DELEGATE_SEED,
         merchant_id_bytes.as_ref(),
         ctx.accounts.mint.to_account_info().key.as_ref(),
-        ctx.accounts.user_token_account.to_account_info().key.as_ref(),
+        ctx.accounts
+            .user_token_account
+            .to_account_info()
+            .key
+            .as_ref(),
         &bump_bytes,
     ]];
 

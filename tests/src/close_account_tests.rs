@@ -31,6 +31,7 @@ async fn test_close_account_success() {
         debitor: debitor_pk,
         debitor_state: debitor_pda.pubkey,
         mint: mint_pk,
+        state: ctx.bridge_cards_state.pubkey,
         system_program: anchor_lang::system_program::ID,
     };
     let ix = create_add_or_update_merchant_debitor_instruction(
@@ -148,6 +149,7 @@ async fn test_close_account_not_admin() {
         debitor: debitor_pk,
         debitor_state: debitor_pda.pubkey,
         mint: mint_pk,
+        state: ctx.bridge_cards_state.pubkey,
         system_program: anchor_lang::system_program::ID,
     };
     let ix = create_add_or_update_merchant_debitor_instruction(
@@ -231,6 +233,7 @@ async fn test_close_account_invalid_pda() {
         debitor: debitor_pk,
         debitor_state: debitor_pda.pubkey,
         mint: mint_pk,
+        state: ctx.bridge_cards_state.pubkey,
         system_program: anchor_lang::system_program::ID,
     };
     let ix = create_add_or_update_merchant_debitor_instruction(

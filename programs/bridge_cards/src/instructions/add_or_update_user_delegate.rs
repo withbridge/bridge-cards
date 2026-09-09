@@ -139,7 +139,10 @@ pub fn handler(
     period_transfer_limit: u64,
     transfer_limit_period: u32,
 ) -> Result<()> {
-    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+    require!(
+        !ctx.accounts.state.migrated,
+        crate::errors::ErrorCode::ProgramMigrated
+    );
 
     let user_delegate_account = &mut ctx.accounts.user_delegate_account;
 

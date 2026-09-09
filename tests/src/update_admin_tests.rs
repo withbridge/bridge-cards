@@ -65,6 +65,7 @@ async fn test_update_admin() {
     let expected_state_data = BridgeCardsState {
         admin: new_admin_pk,
         bump: ctx.bridge_cards_state.bump,
+        migrated: false,
     }
     .account_data();
 

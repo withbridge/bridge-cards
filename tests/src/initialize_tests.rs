@@ -24,6 +24,7 @@ async fn test_initialize() {
     let expected_state_data = BridgeCardsState {
         admin: ctx.payer_pk,
         bump: ctx.bridge_cards_state.bump,
+        migrated: false,
     }
     .account_data();
 

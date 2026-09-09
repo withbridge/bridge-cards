@@ -84,7 +84,10 @@ pub struct UpdateAdmin<'info> {
  * @return Result indicating success or containing an error
  */
 pub fn handler(ctx: Context<UpdateAdmin>) -> Result<()> {
-    require!(!ctx.accounts.state.migrated, crate::errors::ErrorCode::ProgramMigrated);
+    require!(
+        !ctx.accounts.state.migrated,
+        crate::errors::ErrorCode::ProgramMigrated
+    );
 
     let state = &mut ctx.accounts.state;
     state.admin = ctx.accounts.new_admin.key();

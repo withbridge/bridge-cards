@@ -321,6 +321,7 @@ pub fn setup_merchant_debitor_and_destination_with_program(
         debitor: debitor_pk,
         debitor_state: debitor_pda.pubkey,
         mint: *mint_pk,
+        state: ctx.bridge_cards_state.pubkey,
         system_program: anchor_lang::system_program::ID,
     };
     let ix = create_add_or_update_merchant_debitor_instruction(
