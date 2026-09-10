@@ -1,7 +1,6 @@
 use crate::events::UserDelegateAddedOrUpdated;
-use crate::instructions::initialize::STATE_SEED;
 use crate::instructions::set_migrated::MIGRATION_STATE_SEED;
-use crate::state::{BridgeCardsState, MerchantManagerState, UserDelegateState};
+use crate::state::{MerchantManagerState, UserDelegateState};
 use crate::{ID, MERCHANT_MANAGER_SEED};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount};
@@ -62,13 +61,6 @@ pub struct AddOrUpdateUserDelegate<'info> {
     /// Required permissions: Signer
     #[account( constraint = manager.key() == manager_state.manager)]
     pub manager: Signer<'info>,
-
-    #[account(
-        seeds = [STATE_SEED],
-        bump = state.bump,
-        seeds::program = ID,
-    )]
-    pub state: Account<'info, BridgeCardsState>,
 
     /// Account that will pay for PDA creation and rent
     /// Required permissions: Signer, Mutable (for rent payment)
