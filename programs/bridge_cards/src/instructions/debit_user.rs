@@ -96,18 +96,20 @@ pub struct DebitUser<'info> {
     /// Required permissions: Read-only
     pub mint: InterfaceAccount<'info, Mint>,
 
+    /// Required Solana system programs
+    pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>,
+
     /// CHECK: When owned by the bridge-cards program, the contract is migrated and
     /// this instruction is blocked. Seeds constraint validates the canonical PDA.
+    /// Placed last so existing callers passing N accounts are unaffected; the extra
+    /// account silently lands in remaining_accounts on the old binary.
     #[account(
         seeds = [MIGRATION_STATE_SEED],
         bump,
         seeds::program = ID,
     )]
     pub migration_state: UncheckedAccount<'info>,
-
-    /// Required Solana system programs
-    pub system_program: Program<'info, System>,
-    pub token_program: Interface<'info, TokenInterface>,
 }
 
 /**

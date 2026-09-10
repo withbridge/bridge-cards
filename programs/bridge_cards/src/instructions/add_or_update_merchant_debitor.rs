@@ -110,12 +110,12 @@ pub struct AddOrUpdateMerchantDebitor<'info> {
     /// Required permissions: None (read-only validation)
     pub mint: InterfaceAccount<'info, Mint>,
 
+    /// Required for account creation
+    pub system_program: Program<'info, System>,
+
     /// CHECK: When owned by bridge-cards, the contract is migrated and this instruction is blocked.
     #[account(seeds = [MIGRATION_STATE_SEED], bump, seeds::program = ID)]
     pub migration_state: UncheckedAccount<'info>,
-
-    /// Required for account creation
-    pub system_program: Program<'info, System>,
 }
 
 /**
