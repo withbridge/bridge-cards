@@ -32,6 +32,7 @@ async fn test_add_merchant_debitor() {
         debitor_state: debitor_pda.pubkey,
         mint: mint_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 
@@ -115,6 +116,7 @@ async fn test_add_second_debitor() {
         debitor_state: debitor_pda.pubkey,
         mint: mint_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 
@@ -173,6 +175,7 @@ async fn test_add_second_debitor() {
         debitor_state: new_debitor_pda.pubkey,
         mint: new_mint_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 
@@ -257,6 +260,7 @@ async fn test_update_debitor_to_false_then_back() {
         debitor_state: debitor_pda.pubkey,
         mint: mint_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 
@@ -392,6 +396,7 @@ async fn test_non_manager_cannot_add_debitor() {
         debitor_state: debitor_pda.pubkey,
         mint: mint_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 

@@ -1,95 +1,104 @@
-//! Sets or clears the program-level migrated flag.
-//! When migrated is true, all instructions except cpi_transfer are rejected.
-//! This instruction is intentionally exempt from the migrated check so the admin
-//! can toggle the flag in either direction.
+//! Creates or closes the MigrationState PDA to signal the program's migration status.
 //!
-//! # Upgrade safety
+//! When the MigrationState PDA exists (owned by this program), the contract is
+//! migrated: all instructions except cpi_transfer check for it and reject.
+//! When it doesn't exist, the contract operates normally.
 //!
-//! The state account uses `UncheckedAccount` (rather than `Account<BridgeCardsState>`)
-//! so that the realloc can happen *before* Borsh deserialization. Anchor deserializes
-//! `Account<T>` before applying constraints, so an existing mainnet account sized for the
-//! old layout (without `migrated: bool`) would fail deserialization before the realloc
-//! could expand it. We validate the seeds, owner, discriminator, and admin manually.
+//! Using a separate PDA instead of a field in BridgeCardsState means the
+//! BridgeCardsState account never changes size, so deploying the migration binary
+//! works immediately against all existing mainnet accounts with zero downtime.
+//!
+//! # Deployment strategy
+//!
+//! Because adding `migration_state` to instruction account lists is a breaking change
+//! for existing callers, the deployment order should be:
+//!   1. Deploy updated Monorail (passes migration_state PDA to affected instructions).
+//!      The old binary ignores the extra account — no failures.
+//!   2. Deploy migration binary. New binary validates migration_state. Zero downtime.
+//!   3. Call set_migrated(true) when ready to cut over.
 
 use crate::errors::ErrorCode;
 use crate::events::MigrationStateUpdated;
 use crate::instructions::initialize::STATE_SEED;
-use crate::state::BridgeCardsState;
+use crate::state::{BridgeCardsState, MigrationState};
 use crate::ID;
 use anchor_lang::prelude::*;
 
+/// Seed for the migration-state PDA.
+pub const MIGRATION_STATE_SEED: &[u8] = b"migration";
+
 #[derive(Accounts)]
 pub struct SetMigrated<'info> {
+    #[account(constraint = admin.key() == state.admin @ ErrorCode::InvalidPda)]
     pub admin: Signer<'info>,
 
-    /// Pays any lamport increase from reallocating the state account.
-    /// On the first call the state account grows by 1 byte (adding the migrated field);
-    /// subsequent calls are a no-op with respect to size.
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// CHECK: Validated manually in the handler — seeds, owner, discriminator, and admin
-    /// are all checked after the realloc so the upgrade path from the old layout works.
+    #[account(
+        seeds = [STATE_SEED],
+        bump = state.bump,
+        seeds::program = ID,
+    )]
+    pub state: Account<'info, BridgeCardsState>,
+
+    /// CHECK: Created (migrated=true) or closed (migrated=false) in the handler.
+    /// Seeds constraint ensures this is the canonical migration PDA.
     #[account(
         mut,
-        seeds = [STATE_SEED],
+        seeds = [MIGRATION_STATE_SEED],
         bump,
         seeds::program = ID,
     )]
-    pub state: UncheckedAccount<'info>,
+    pub migration_state: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<SetMigrated>, migrated: bool) -> Result<()> {
-    let state_info = ctx.accounts.state.to_account_info();
+    if migrated {
+        if ctx.accounts.migration_state.lamports() == 0 {
+            // Create the MigrationState PDA.
+            let bump = ctx.bumps.migration_state;
+            let space = MigrationState::DISCRIMINATOR.len() + MigrationState::INIT_SPACE;
+            let lamports = Rent::get()?.minimum_balance(space);
+            let signer_seeds: &[&[&[u8]]] = &[&[MIGRATION_STATE_SEED, &[bump]]];
 
-    // Validate program ownership.
-    require_keys_eq!(*state_info.owner, ID, ErrorCode::InvalidPda);
-
-    let target_len = BridgeCardsState::DISCRIMINATOR.len() + BridgeCardsState::INIT_SPACE;
-
-    // Grow the account if it predates the `migrated` field (old layout is 1 byte smaller).
-    if state_info.data_len() < target_len {
-        let rent = Rent::get()?;
-        let required_lamports = rent.minimum_balance(target_len);
-        let current_lamports = state_info.lamports();
-        if current_lamports < required_lamports {
-            anchor_lang::system_program::transfer(
-                CpiContext::new(
+            anchor_lang::system_program::create_account(
+                CpiContext::new_with_signer(
                     ctx.accounts.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
+                    anchor_lang::system_program::CreateAccount {
                         from: ctx.accounts.payer.to_account_info(),
-                        to: state_info.clone(),
+                        to: ctx.accounts.migration_state.to_account_info(),
                     },
+                    signer_seeds,
                 ),
-                required_lamports - current_lamports,
+                lamports,
+                space as u64,
+                &ID,
             )?;
+
+            let mut data = ctx.accounts.migration_state.try_borrow_mut_data()?;
+            data[..MigrationState::DISCRIMINATOR.len()].copy_from_slice(&MigrationState::DISCRIMINATOR);
+            data[MigrationState::DISCRIMINATOR.len()] = bump;
         }
-        state_info.realloc(target_len, false)?;
+    } else {
+        let lamports = ctx.accounts.migration_state.lamports();
+        if lamports > 0 {
+            // Close the MigrationState PDA — return lamports to payer, then reassign
+            // to system program and realloc to 0 so the address can be re-created later.
+            {
+                let mut payer_lamports = ctx.accounts.payer.try_borrow_mut_lamports()?;
+                let mut ms_lamports = ctx.accounts.migration_state.try_borrow_mut_lamports()?;
+                **payer_lamports += lamports;
+                **ms_lamports = 0;
+            }
+            ctx.accounts
+                .migration_state
+                .assign(&anchor_lang::solana_program::system_program::id());
+            ctx.accounts.migration_state.realloc(0, false)?;
+        }
     }
-
-    // Deserialize, validate, mutate, re-serialize.
-    let mut data = state_info.try_borrow_mut_data()?;
-
-    // Validate discriminator.
-    require!(
-        data[..8] == *BridgeCardsState::DISCRIMINATOR,
-        ErrorCode::InvalidPda
-    );
-
-    let mut state = BridgeCardsState::try_deserialize(&mut data.as_ref())?;
-
-    // Validate stored bump matches the PDA we derived.
-    require_eq!(state.bump, ctx.bumps.state, ErrorCode::InvalidPda);
-
-    // Validate admin.
-    require_keys_eq!(ctx.accounts.admin.key(), state.admin, ErrorCode::InvalidPda);
-
-    state.migrated = migrated;
-
-    let mut slice: &mut [u8] = &mut data;
-    state.try_serialize(&mut slice)?;
 
     emit!(MigrationStateUpdated { migrated });
 

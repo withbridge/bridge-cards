@@ -1,5 +1,6 @@
 use crate::events::UserDelegateAddedOrUpdated;
 use crate::instructions::initialize::STATE_SEED;
+use crate::instructions::set_migrated::MIGRATION_STATE_SEED;
 use crate::state::{BridgeCardsState, MerchantManagerState, UserDelegateState};
 use crate::{ID, MERCHANT_MANAGER_SEED};
 use anchor_lang::prelude::*;
@@ -109,6 +110,10 @@ pub struct AddOrUpdateUserDelegate<'info> {
     )]
     pub user_delegate_account: Account<'info, UserDelegateState>,
 
+    /// CHECK: When owned by bridge-cards, the contract is migrated and this instruction is blocked.
+    #[account(seeds = [MIGRATION_STATE_SEED], bump, seeds::program = ID)]
+    pub migration_state: UncheckedAccount<'info>,
+
     /// Required for account creation
     pub system_program: Program<'info, System>,
 }
@@ -140,7 +145,7 @@ pub fn handler(
     transfer_limit_period: u32,
 ) -> Result<()> {
     require!(
-        !ctx.accounts.state.migrated,
+        ctx.accounts.migration_state.owner != &ID,
         crate::errors::ErrorCode::ProgramMigrated
     );
 

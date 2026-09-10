@@ -20,6 +20,7 @@ async fn test_update_admin() {
         admin: ctx.payer_pk,
         payer: ctx.payer_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         new_admin: new_admin_pk,
     };
     let ix = create_update_admin_instruction(&ctx, accounts);
@@ -65,7 +66,6 @@ async fn test_update_admin() {
     let expected_state_data = BridgeCardsState {
         admin: new_admin_pk,
         bump: ctx.bridge_cards_state.bump,
-        migrated: false,
     }
     .account_data();
 
@@ -91,6 +91,7 @@ async fn test_update_admin_not_admin() {
         admin: not_admin_pk,
         payer: not_admin_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         new_admin: new_admin_pk,
     };
     let ix = create_update_admin_instruction(&ctx, accounts);

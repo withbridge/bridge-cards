@@ -1,5 +1,6 @@
 use crate::events::MerchantManagerAddedOrUpdated;
 use crate::instructions::initialize::STATE_SEED;
+use crate::instructions::set_migrated::MIGRATION_STATE_SEED;
 use crate::state::{BridgeCardsState, MerchantManagerState};
 use crate::ID;
 use anchor_lang::prelude::*;
@@ -92,6 +93,10 @@ pub struct AddOrUpdateMerchantManager<'info> {
     /// CHECK: Account is only stored as a pubkey, no account data validation needed
     pub manager: AccountInfo<'info>,
 
+    /// CHECK: When owned by bridge-cards, the contract is migrated and this instruction is blocked.
+    #[account(seeds = [MIGRATION_STATE_SEED], bump, seeds::program = ID)]
+    pub migration_state: UncheckedAccount<'info>,
+
     /// Required for account creation
     pub system_program: Program<'info, System>,
 }
@@ -111,7 +116,7 @@ pub struct AddOrUpdateMerchantManager<'info> {
  */
 pub fn handler(ctx: Context<AddOrUpdateMerchantManager>, merchant_id: u64) -> Result<()> {
     require!(
-        !ctx.accounts.state.migrated,
+        ctx.accounts.migration_state.owner != &ID,
         crate::errors::ErrorCode::ProgramMigrated
     );
 

@@ -21,8 +21,15 @@ pub struct BridgeCardsState {
     pub admin: Pubkey,
     // Bump seed used in PDA derivation
     pub bump: u8,
-    // When true, all instructions except cpi_transfer are disabled
-    pub migrated: bool,
+}
+
+/// Existence of this PDA signals that the program has been migrated to the spender program.
+/// Created by set_migrated(true), closed by set_migrated(false).
+/// Seeds: [b"migration"] / program = bridge_cards
+#[account]
+#[derive(InitSpace)]
+pub struct MigrationState {
+    pub bump: u8,
 }
 
 /**

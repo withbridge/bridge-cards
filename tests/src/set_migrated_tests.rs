@@ -1,10 +1,19 @@
 use crate::common::*;
-use account_data_trait::AccountData;
-use anchor_lang::{AnchorDeserialize, InstructionData, ToAccountMetas};
-use bridge_cards::state::BridgeCardsState;
-use solana_account::Account;
+use anchor_lang::{InstructionData, ToAccountMetas};
+use bridge_cards::instructions::add_or_update_merchant_manager::MERCHANT_MANAGER_SEED;
 use solana_program_test::tokio;
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey, rent::Rent, signature::Signer};
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey, signature::Signer};
+
+fn migration_state_pda(ctx: &Context) -> Pubkey {
+    make_migration_state_pda(&ctx.program_id)
+}
+
+fn is_migrated(ctx: &Context) -> bool {
+    ctx.svm
+        .get_account(&migration_state_pda(ctx))
+        .map(|a| a.lamports > 0 && a.owner == ctx.program_id)
+        .unwrap_or(false)
+}
 
 fn create_set_migrated_instruction(ctx: &Context, migrated: bool) -> Instruction {
     Instruction {
@@ -13,6 +22,7 @@ fn create_set_migrated_instruction(ctx: &Context, migrated: bool) -> Instruction
             admin: ctx.payer_pk,
             payer: ctx.payer_pk,
             state: ctx.bridge_cards_state.pubkey,
+            migration_state: migration_state_pda(ctx),
             system_program: anchor_lang::solana_program::system_program::id(),
         }
         .to_account_metas(None),
@@ -20,200 +30,103 @@ fn create_set_migrated_instruction(ctx: &Context, migrated: bool) -> Instruction
     }
 }
 
-fn read_state(ctx: &Context) -> BridgeCardsState {
-    let data = ctx
-        .svm
-        .get_account(&ctx.bridge_cards_state.pubkey)
-        .unwrap()
-        .data;
-    // skip 8-byte discriminator then borsh-deserialize
-    BridgeCardsState::deserialize(&mut &data[8..]).unwrap()
+fn do_set_migrated(ctx: &mut Context, migrated: bool) {
+    let ix = create_set_migrated_instruction(ctx, migrated);
+    let tx = create_transaction_with_payer_and_signers(
+        ctx, &[ix], Some(&ctx.payer_pk), &[&ctx.payer_kp.insecure_clone()],
+    );
+    submit_transaction(ctx, tx).unwrap();
 }
 
-// ── Basic functionality ───────────────────────────────────────────────────────
+#[tokio::test]
+async fn test_set_migrated_true_creates_pda() {
+    let mut ctx = setup_and_initialize();
+    assert!(!is_migrated(&ctx));
+    do_set_migrated(&mut ctx, true);
+    assert!(is_migrated(&ctx), "migration PDA should exist after set_migrated(true)");
+}
 
 #[tokio::test]
-async fn test_set_migrated_true() {
+async fn test_set_migrated_false_closes_pda() {
     let mut ctx = setup_and_initialize();
-
-    let ix = create_set_migrated_instruction(&ctx, true);
-    let tx =
-        create_transaction_with_payer_and_signers(&ctx, &[ix], Some(&ctx.payer_pk), &[&ctx.payer_kp]);
-    submit_transaction(&mut ctx, tx).unwrap();
-
-    assert!(read_state(&ctx).migrated);
+    do_set_migrated(&mut ctx, true);
+    assert!(is_migrated(&ctx));
+    do_set_migrated(&mut ctx, false);
+    assert!(!is_migrated(&ctx), "migration PDA should be closed");
 }
 
 #[tokio::test]
 async fn test_set_migrated_toggle() {
     let mut ctx = setup_and_initialize();
-
-    for migrated in [true, false, true] {
-        let ix = create_set_migrated_instruction(&ctx, migrated);
-        let tx = create_transaction_with_payer_and_signers(
-            &ctx,
-            &[ix],
-            Some(&ctx.payer_pk),
-            &[&ctx.payer_kp],
-        );
-        submit_transaction(&mut ctx, tx).unwrap();
-        assert_eq!(read_state(&ctx).migrated, migrated);
+    for expected in [true, false, true, false] {
+        do_set_migrated(&mut ctx, expected);
+        assert_eq!(is_migrated(&ctx), expected);
     }
+}
+
+#[tokio::test]
+async fn test_set_migrated_idempotent() {
+    let mut ctx = setup_and_initialize();
+    do_set_migrated(&mut ctx, true);
+    do_set_migrated(&mut ctx, true);
+    assert!(is_migrated(&ctx));
+    do_set_migrated(&mut ctx, false);
+    do_set_migrated(&mut ctx, false);
+    assert!(!is_migrated(&ctx));
 }
 
 #[tokio::test]
 async fn test_set_migrated_wrong_admin_rejected() {
     let mut ctx = setup_and_initialize();
     let fake_admin = ctx.extra_keypair.insecure_clone();
-
     let ix = Instruction {
         program_id: ctx.program_id,
         accounts: bridge_cards::accounts::SetMigrated {
             admin: fake_admin.pubkey(),
             payer: ctx.payer_pk,
             state: ctx.bridge_cards_state.pubkey,
+            migration_state: migration_state_pda(&ctx),
             system_program: anchor_lang::solana_program::system_program::id(),
-        }
-        .to_account_metas(None),
+        }.to_account_metas(None),
         data: bridge_cards::instruction::SetMigrated { migrated: true }.data(),
     };
+    let payer_kp = ctx.payer_kp.insecure_clone();
     let tx = create_transaction_with_payer_and_signers(
-        &ctx,
-        &[ix],
-        Some(&ctx.payer_pk),
-        &[&ctx.payer_kp, &fake_admin],
+        &ctx, &[ix], Some(&ctx.payer_pk), &[&payer_kp, &fake_admin],
     );
-    assert!(
-        submit_transaction(&mut ctx, tx).is_err(),
-        "wrong admin should be rejected"
-    );
+    assert!(submit_transaction(&mut ctx, tx).is_err(), "wrong admin should be rejected");
 }
 
-// ── Upgrade path ──────────────────────────────────────────────────────────────
-
-/// Simulates deploying the new binary onto a mainnet state account that was
-/// created with the old layout (no `migrated` field, 41 bytes total).
-/// Verifies that `set_migrated` can expand and migrate it successfully.
 #[tokio::test]
-async fn test_set_migrated_expands_old_layout_account() {
+async fn test_post_migration_instructions_blocked_then_restored() {
     let mut ctx = setup_and_initialize();
+    do_set_migrated(&mut ctx, true);
 
-    let bump = ctx.bridge_cards_state.bump;
-
-    // Build the old 41-byte layout: discriminator(8) + admin(32) + bump(1).
-    // This is what every mainnet account looks like before this upgrade.
-    let expected_disc = BridgeCardsState {
-        admin: ctx.payer_pk,
-        bump,
-        migrated: false,
-    }
-    .account_data();
-    // account_data() returns discriminator + borsh data (42 bytes).
-    // The old layout is the first 41 bytes (no migrated byte).
-    let old_data = expected_disc[..41].to_vec();
-    assert_eq!(old_data.len(), 41);
-
-    let rent = Rent::default();
-    ctx.svm
-        .set_account(
-            ctx.bridge_cards_state.pubkey,
-            Account {
-                lamports: rent.minimum_balance(41),
-                data: old_data,
-                owner: ctx.program_id,
-                executable: false,
-                rent_epoch: u64::MAX,
-            },
-        )
-        .unwrap();
-
-    // Calling any other instruction would now fail with UnexpectedEof.
-    // Verify set_migrated can repair the account.
-    let ix = create_set_migrated_instruction(&ctx, true);
-    let tx = create_transaction_with_payer_and_signers(
-        &ctx,
-        &[ix],
-        Some(&ctx.payer_pk),
-        &[&ctx.payer_kp],
-    );
-    submit_transaction(&mut ctx, tx)
-        .expect("set_migrated should succeed on old-layout (41-byte) account");
-
-    let account = ctx.svm.get_account(&ctx.bridge_cards_state.pubkey).unwrap();
-    assert_eq!(account.data.len(), 42, "account should be expanded to 42 bytes");
-
-    let state = read_state(&ctx);
-    assert!(state.migrated);
-    assert_eq!(state.admin, ctx.payer_pk, "admin preserved after expansion");
-    assert_eq!(state.bump, bump, "bump preserved after expansion");
-}
-
-/// After set_migrated expands the old-layout account, subsequent instructions
-/// that deserialize state should work normally.
-#[tokio::test]
-async fn test_instructions_work_after_upgrade_migration() {
-    let mut ctx = setup_and_initialize();
-    let bump = ctx.bridge_cards_state.bump;
-
-    // Shrink to old layout.
-    let full_data = BridgeCardsState {
-        admin: ctx.payer_pk,
-        bump,
-        migrated: false,
-    }
-    .account_data();
-    let old_data = full_data[..41].to_vec();
-
-    let rent = Rent::default();
-    ctx.svm
-        .set_account(
-            ctx.bridge_cards_state.pubkey,
-            Account {
-                lamports: rent.minimum_balance(41),
-                data: old_data,
-                owner: ctx.program_id,
-                executable: false,
-                rent_epoch: u64::MAX,
-            },
-        )
-        .unwrap();
-
-    // Repair with set_migrated(false) — expands without locking the program.
-    let ix = create_set_migrated_instruction(&ctx, false);
-    let tx = create_transaction_with_payer_and_signers(
-        &ctx,
-        &[ix],
-        Some(&ctx.payer_pk),
-        &[&ctx.payer_kp],
-    );
-    submit_transaction(&mut ctx, tx).expect("set_migrated(false) should repair the account");
-
-    // add_or_update_merchant_manager also loads state; verify it works.
     let manager_pk = Pubkey::new_unique();
-    let manager_state_pda = make_pda(
-        &[
-            bridge_cards::instructions::add_or_update_merchant_manager::MERCHANT_MANAGER_SEED,
-            &99u64.to_le_bytes(),
-        ],
-        &ctx.program_id,
-    );
+    let manager_state_pda = make_pda(&[MERCHANT_MANAGER_SEED, &99u64.to_le_bytes()], &ctx.program_id);
     let accounts = bridge_cards::accounts::AddOrUpdateMerchantManager {
         admin: ctx.payer_pk,
         payer: ctx.payer_pk,
         state: ctx.bridge_cards_state.pubkey,
         manager_state: manager_state_pda.pubkey,
         manager: manager_pk,
+        migration_state: migration_state_pda(&ctx),
         system_program: anchor_lang::solana_program::system_program::id(),
     };
+
     let ix = create_add_or_update_merchant_manager_instruction(&ctx, &accounts, 99);
+    let payer_kp = ctx.payer_kp.insecure_clone();
     let tx = create_transaction_with_payer_and_signers(
-        &ctx,
-        &[ix],
-        Some(&ctx.payer_pk),
-        &[&ctx.payer_kp],
+        &ctx, &[ix], Some(&ctx.payer_pk), &[&payer_kp],
     );
-    assert!(
-        submit_transaction(&mut ctx, tx).is_ok(),
-        "add_merchant_manager should work after account expansion"
+    assert!(submit_transaction(&mut ctx, tx).is_err(), "should be blocked when migrated");
+
+    do_set_migrated(&mut ctx, false);
+
+    let ix2 = create_add_or_update_merchant_manager_instruction(&ctx, &accounts, 99);
+    let payer_kp2 = ctx.payer_kp.insecure_clone();
+    let tx2 = create_transaction_with_payer_and_signers(
+        &ctx, &[ix2], Some(&ctx.payer_pk), &[&payer_kp2],
     );
+    assert!(submit_transaction(&mut ctx, tx2).is_ok(), "should work again after rollback");
 }

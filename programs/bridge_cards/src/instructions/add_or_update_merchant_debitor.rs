@@ -1,5 +1,6 @@
 use crate::events::MerchantDebitorAddedOrUpdated;
 use crate::instructions::initialize::STATE_SEED;
+use crate::instructions::set_migrated::MIGRATION_STATE_SEED;
 use crate::state::{BridgeCardsState, MerchantDebitorState, MerchantManagerState};
 use crate::{ID, MERCHANT_MANAGER_SEED};
 use anchor_lang::prelude::*;
@@ -109,6 +110,10 @@ pub struct AddOrUpdateMerchantDebitor<'info> {
     /// Required permissions: None (read-only validation)
     pub mint: InterfaceAccount<'info, Mint>,
 
+    /// CHECK: When owned by bridge-cards, the contract is migrated and this instruction is blocked.
+    #[account(seeds = [MIGRATION_STATE_SEED], bump, seeds::program = ID)]
+    pub migration_state: UncheckedAccount<'info>,
+
     /// Required for account creation
     pub system_program: Program<'info, System>,
 }
@@ -133,7 +138,7 @@ pub fn handler(
     allowed: bool,
 ) -> Result<()> {
     require!(
-        !ctx.accounts.state.migrated,
+        ctx.accounts.migration_state.owner != &ID,
         crate::errors::ErrorCode::ProgramMigrated
     );
 
