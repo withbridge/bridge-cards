@@ -8,6 +8,18 @@
 //! intentionally NOT enforced here. The spender program enforces its own spend controls
 //! before invoking this instruction, and adding an on-chain check here would duplicate
 //! that enforcement. UserDelegateState tracking fields are therefore not updated on this path.
+//!
+//! This is a deliberate break from the debit_user model. When the program is migrated,
+//! UserDelegateState spending limits are superseded by the spender program's controls.
+//!
+//! # Destination whitelist
+//!
+//! This instruction does NOT check a bridge-cards MerchantDestinationState for the
+//! destination token account. Destination validation is entirely the spender program's
+//! responsibility: it verifies the destination against its own MerchantDestinationState
+//! PDA before invoking this instruction. The caller_proof signer constraint guarantees
+//! the call originated from the authorized spender program, which by contract has already
+//! performed that check.
 
 use crate::errors::ErrorCode;
 use crate::events::CpiTransferExecuted;
