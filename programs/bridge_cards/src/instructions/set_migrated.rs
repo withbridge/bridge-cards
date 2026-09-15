@@ -109,8 +109,8 @@ pub fn handler(ctx: Context<SetMigrated>, migrated: bool) -> Result<()> {
             emit!(MigrationStateUpdated { migrated });
         }
     } else {
-        let lamports = ctx.accounts.migration_state.lamports();
-        if lamports > 0 {
+        if ctx.accounts.migration_state.owner == &ID {
+            let lamports = ctx.accounts.migration_state.lamports();
             // Close the MigrationState PDA — return lamports to payer, then reassign
             // to system program and realloc to 0 so the address can be re-created later.
             // realloc must come before assign: the runtime checks at finalization that
