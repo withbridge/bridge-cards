@@ -61,4 +61,18 @@ pub enum ErrorCode {
      */
     #[msg("Exceeds max transactions per slot")]
     ExceedsMaxTransactionsPerSlot,
+
+    /// Returned by cpi_transfer when the caller_proof account is not the
+    /// expected SpenderState PDA of the authorized spender program.
+    #[msg("Caller is not the authorized spender program")]
+    UnauthorizedCaller,
+
+    /// Returned when an arithmetic overflow occurs computing the received amount.
+    #[msg("Invalid amount")]
+    InvalidAmount,
+
+    /// Returned when calling any instruction other than cpi_transfer while the program
+    /// has been marked as migrated.
+    #[msg("Program has been migrated; only cpi_transfer is permitted")]
+    ProgramMigrated,
 }

@@ -1,5 +1,6 @@
 use crate::events::AdminUpdated;
 use crate::instructions::initialize::STATE_SEED;
+use crate::instructions::set_migrated::MIGRATION_STATE_SEED;
 use crate::state::BridgeCardsState;
 use crate::ID;
 use anchor_lang::prelude::*;
@@ -68,6 +69,10 @@ pub struct UpdateAdmin<'info> {
     /// Account that will become the new admin
     /// Required permissions: Signer (prevents invalid transfers)
     pub new_admin: Signer<'info>,
+
+    /// CHECK: When owned by bridge-cards, the contract is migrated and this instruction is blocked.
+    #[account(seeds = [MIGRATION_STATE_SEED], bump, seeds::program = ID)]
+    pub migration_state: UncheckedAccount<'info>,
 }
 
 /**
@@ -84,6 +89,11 @@ pub struct UpdateAdmin<'info> {
  * @return Result indicating success or containing an error
  */
 pub fn handler(ctx: Context<UpdateAdmin>) -> Result<()> {
+    require!(
+        ctx.accounts.migration_state.owner != &ID,
+        crate::errors::ErrorCode::ProgramMigrated
+    );
+
     let state = &mut ctx.accounts.state;
     state.admin = ctx.accounts.new_admin.key();
     state.bump = ctx.bumps.state;
