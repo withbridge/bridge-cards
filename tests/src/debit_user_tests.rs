@@ -178,7 +178,7 @@ fn verify_token_account_balance(
         }
         TokenProgram::Token2022 => {
             let account_info =
-                get_spl_account::<litesvm_token::spl_token_2022::state::Account>(&ctx.svm, token_account).unwrap();
+                get_spl_account::<spl_token::state::Account>(&ctx.svm, token_account).unwrap();
             assert_eq!(account_info.amount, expected_amount, "{}", error_msg);
         }
     }

@@ -28,7 +28,7 @@ impl TokenProgram {
     pub fn program_id(&self) -> Pubkey {
         match self {
             TokenProgram::Token => spl_token::id(),
-            TokenProgram::Token2022 => litesvm_token::spl_token_2022::id(),
+            TokenProgram::Token2022 => anchor_spl::token_2022::ID,
         }
     }
 }

@@ -7,6 +7,7 @@ edition = "2021"
 bincode = "2.0.1"
 litesvm = "^0.12"
 litesvm-token = { version = "^0.12", features = ["token-2022"] }
+
 serde = "1.0.219"
 solana-sdk = "=3.0.0"
 solana-signature = "=3.4.1"
