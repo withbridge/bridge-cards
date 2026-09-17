@@ -61,4 +61,27 @@ pub enum ErrorCode {
      */
     #[msg("Exceeds max transactions per slot")]
     ExceedsMaxTransactionsPerSlot,
+
+    /// Returned by transfer instructions when the program is paused.
+    #[msg("Program is paused")]
+    ProgramPaused,
+
+    #[msg("Too many destination accounts, maximum is 10")]
+    TooManyDestinations,
+
+    #[msg("Remaining accounts must be provided in destination/destination_state pairs")]
+    InvalidRemainingAccounts,
+
+    #[msg("Role address cannot be the zero address")]
+    ZeroAddress,
+
+    #[msg("Delegation account has an unknown type discriminator")]
+    InvalidDelegationType,
+
+    #[msg("Destination account must be a token account")]
+    InvalidDestinationAccount,
+
+    /// Returned when amount is zero.
+    #[msg("Invalid amount, must be greater than zero")]
+    InvalidAmount,
 }

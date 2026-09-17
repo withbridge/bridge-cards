@@ -123,13 +123,10 @@ pub fn close_account_and_transfer_lamports<'info>(
     recipient: &AccountInfo<'info>,
 ) -> Result<()> {
     // Transfer all lamports from the account to the recipient
-    let lamports = account_to_close.lamports();
+    recipient.add_lamports(account_to_close.lamports())?;
     **account_to_close.try_borrow_mut_lamports()? = 0;
-    **recipient.try_borrow_mut_lamports()? += lamports;
-
-    // realloc the account to 0 bytes
+    account_to_close.resize(0)?;
     account_to_close.assign(&system_program::ID);
-    account_to_close.realloc(0, false).unwrap();
 
     Ok(())
 }

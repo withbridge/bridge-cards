@@ -8,6 +8,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-borsh = "0.10.4"
+borsh = "1"
 quote = "1.0.40"
 syn = "2.0.100"

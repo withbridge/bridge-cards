@@ -139,7 +139,7 @@ pub fn handler(ctx: Context<DebitUser>, merchant_id: u64, amount: u64) -> Result
     // Execute the token transfer with amount and decimal validation
     token_interface::transfer_checked(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.token_program.to_account_info().key(),
             token_interface::TransferChecked {
                 from: ctx.accounts.user_token_account.to_account_info(),
                 to: ctx.accounts.destination_token_account.to_account_info(),

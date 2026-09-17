@@ -120,3 +120,82 @@ pub struct UserDebited {
     pub mint: Pubkey,
     pub amount: u64,
 }
+
+#[event]
+pub struct SpenderStateInitialized {
+    pub governor: Pubkey,
+    pub manager: Pubkey,
+    pub debitor: Pubkey,
+    pub pauser: Pubkey,
+}
+
+#[event]
+pub struct MerchantDelegateAdded {
+    pub merchant_id: [u8; 32],
+    pub delegate: Pubkey,
+    pub initial_destinations: Vec<Pubkey>,
+}
+
+#[event]
+pub struct DelegateDestinationAdded {
+    pub merchant_id: [u8; 32],
+    pub destination: Pubkey,
+}
+
+#[event]
+pub struct DelegateDestinationClosed {
+    pub merchant_id: [u8; 32],
+    pub destination: Pubkey,
+}
+
+#[event]
+pub struct SingleDelegateTransfer {
+    pub merchant_id: [u8; 32],
+    pub user: Pubkey,
+    pub receiver: Pubkey,
+    pub debitor: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct FixedDelegationTransfer {
+    pub merchant_id: [u8; 32],
+    pub user: Pubkey,
+    pub receiver: Pubkey,
+    pub debitor: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct RecurringDelegationTransfer {
+    pub merchant_id: [u8; 32],
+    pub user: Pubkey,
+    pub receiver: Pubkey,
+    pub debitor: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct GovernorAdded {
+    pub governor: Pubkey,
+}
+
+#[event]
+pub struct ManagerAdded {
+    pub manager: Pubkey,
+}
+
+#[event]
+pub struct DebitorAdded {
+    pub debitor: Pubkey,
+}
+
+#[event]
+pub struct PauserAdded {
+    pub pauser: Pubkey,
+}
+
+#[event]
+pub struct ProgramPauseUpdated {
+    pub paused: bool,
+}

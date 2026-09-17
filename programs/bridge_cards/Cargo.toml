@@ -18,14 +18,12 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "0.31.0", features = ["init-if-needed"] }
-anchor-spl = "0.31.0"
+anchor-lang = { version = "1.0.0", features = ["init-if-needed"] }
+anchor-spl = "1.0.0"
 account-data-trait = { path = "../../account-data-trait" }
 account-data-macro-derive = { path = "../../account-data-macro-derive" }
-# Explicit version needed to fix IDL build 
-# https://github.com/solana-foundation/anchor/issues/3681
-proc-macro2 = "1.0.95"
 solana-security-txt = "1.1.1"
+subscriptions = { version = "=0.4.0" }
 
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(solana)'] }

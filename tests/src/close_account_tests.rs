@@ -6,8 +6,8 @@ use bridge_cards::{
     accounts::CloseAccount, errors::ErrorCode as BridgeErrorCode, events::AccountClosed,
     instructions::add_or_update_merchant_debitor::MERCHANT_DEBITOR_SEED,
 };
-use solana_account::ReadableAccount;
-use solana_program_test::tokio;
+use solana_sdk::account::ReadableAccount;
+use tokio;
 use solana_sdk::signature::Signer;
 
 const TEST_MERCHANT_ID: u64 = 1;

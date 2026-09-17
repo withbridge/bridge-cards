@@ -4,7 +4,7 @@ use anchor_lang::error::ErrorCode;
 use anchor_lang::{prelude::*, Event};
 use base64;
 use bridge_cards::{accounts::UpdateAdmin, events::AdminUpdated, state::BridgeCardsState};
-use solana_program_test::tokio;
+use tokio;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
 

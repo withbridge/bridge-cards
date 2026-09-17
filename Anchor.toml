@@ -1,6 +1,6 @@
 [toolchain]
-anchor-version = "0.31.0"
-solana_version = "2.1.18"
+anchor_version = "1.0.0"
+solana_version = "3.1.10"
 package_manager = "yarn"
 
 [features]

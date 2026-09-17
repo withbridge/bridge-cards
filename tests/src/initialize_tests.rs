@@ -1,7 +1,7 @@
 use crate::common::*;
 use account_data_trait::AccountData;
 use bridge_cards::state::BridgeCardsState;
-use solana_program_test::tokio;
+use tokio;
 
 #[tokio::test]
 async fn test_initialize() {

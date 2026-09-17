@@ -7,7 +7,7 @@ use bridge_cards::{
     instructions::add_or_update_merchant_manager::MERCHANT_MANAGER_SEED,
     state::MerchantManagerState,
 };
-use solana_program_test::tokio;
+use tokio;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 
 #[tokio::test]
