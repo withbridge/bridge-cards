@@ -4,7 +4,7 @@ use anchor_lang::{prelude::*, Event};
 use base64;
 use bridge_cards::{events::UserDelegateAddedOrUpdated, state::UserDelegateState};
 use litesvm_token::CreateAssociatedTokenAccountIdempotent;
-use solana_program_test::tokio;
+use tokio;
 use solana_sdk::signature::Signer;
 
 const DEFAULT_MAX_TRANSFER_LIMIT: u64 = 100_000_000; // $100 per transaction

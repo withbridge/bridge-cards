@@ -27,6 +27,8 @@ use anchor_lang::prelude::*;
 pub use instructions::*;
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_security_txt::security_txt;
+#[allow(unused_imports)]
+use subscriptions;
 
 // Program ID for the Bridge Cards program
 declare_id!("cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2");
@@ -167,5 +169,107 @@ pub mod bridge_cards {
      */
     pub fn close_account(ctx: Context<CloseAccount>, input_seeds: Vec<Vec<u8>>) -> Result<()> {
         instructions::close_account::handler(ctx, input_seeds)
+    }
+
+    /// Initialize the SpenderState PDA (seed: "spender_state") with governor/manager/debitor/pauser roles.
+    pub fn initialize_spender_state(
+        ctx: Context<InitializeSpenderState>,
+        admin: Pubkey,
+        governor: Pubkey,
+        manager: Pubkey,
+        debitor: Pubkey,
+        pauser: Pubkey,
+    ) -> Result<()> {
+        instructions::initialize_spender_state::handler(ctx, admin, governor, manager, debitor, pauser)
+    }
+
+    /// Update the governor in SpenderState. Called by admin.
+    pub fn update_governor(ctx: Context<UpdateGovernor>) -> Result<()> {
+        instructions::update_governor::handler(ctx)
+    }
+
+    /// Update the manager in SpenderState. Called by governor.
+    pub fn update_manager(ctx: Context<UpdateManager>) -> Result<()> {
+        instructions::update_manager::handler(ctx)
+    }
+
+    /// Update the debitor in SpenderState. Called by manager.
+    pub fn update_debitor(ctx: Context<UpdateDebitor>) -> Result<()> {
+        instructions::update_debitor::handler(ctx)
+    }
+
+    /// Pause or unpause delegate-based transfers. Called by admin or pauser.
+    pub fn update_paused(ctx: Context<UpdatePaused>, paused: bool) -> Result<()> {
+        instructions::update_paused::handler(ctx, paused)
+    }
+
+    /// Update the pauser in SpenderState. Called by admin.
+    pub fn update_pauser(ctx: Context<UpdatePauser>) -> Result<()> {
+        instructions::update_pauser::handler(ctx)
+    }
+
+    /// Create a MerchantDelegateState PDA and optionally bulk-initialize destination allowlist entries.
+    /// `legacy_merchant_id`: set to the corresponding u64 merchant ID when registering a legacy
+    /// merchant, so that `transfer_using_legacy_delegate` can validate the cross-identifier binding.
+    /// Pass 0 for merchants that are not part of the legacy migration.
+    pub fn setup_merchant_delegate<'info>(
+        ctx: Context<'info, SetupMerchantDelegate<'info>>,
+        merchant_id: [u8; 32],
+        legacy_merchant_id: u64,
+    ) -> Result<()> {
+        instructions::setup_merchant_delegate::handler(ctx, merchant_id, legacy_merchant_id)
+    }
+
+    /// Allowlist a token account as a valid delegate transfer destination for a merchant.
+    pub fn add_delegate_destination(
+        ctx: Context<AddDelegateDestination>,
+        merchant_id: [u8; 32],
+    ) -> Result<()> {
+        instructions::add_delegate_destination::handler(ctx, merchant_id)
+    }
+
+    /// Remove a token account from a merchant's delegate transfer destination allowlist.
+    pub fn close_delegate_destination(
+        ctx: Context<CloseDelegateDestination>,
+        merchant_id: [u8; 32],
+    ) -> Result<()> {
+        instructions::close_delegate_destination::handler(ctx, merchant_id)
+    }
+
+    /// Execute a token transfer using an SPL-approve delegation (no subscriptions).
+    pub fn transfer_using_single_delegate<'info>(
+        ctx: Context<'info, TransferUsingSingleDelegate<'info>>,
+        merchant_id: [u8; 32],
+        amount: u64,
+    ) -> Result<()> {
+        instructions::transfer_using_single_delegate::handler(ctx, merchant_id, amount)
+    }
+
+    /// Execute a token transfer using a fixed or recurring subscription delegation.
+    pub fn transfer_using_subscription_delegate<'info>(
+        ctx: Context<'info, TransferUsingSubscriptionDelegate<'info>>,
+        merchant_id: [u8; 32],
+        delegator: Pubkey,
+        mint: Pubkey,
+        amount: u64,
+    ) -> Result<()> {
+        instructions::transfer_using_subscription_delegate::handler(ctx, merchant_id, delegator, mint, amount)
+    }
+
+    /// Transfer tokens using the legacy user-delegate PDA, validated against the new spender
+    /// access control and destination allowlist. The future successor to debit_user for legacy
+    /// PDA users. Pausable. No velocity controls.
+    pub fn transfer_using_legacy_delegate<'info>(
+        ctx: Context<'info, TransferUsingLegacyDelegate<'info>>,
+        program_id: [u8; 32],
+        merchant_id: u64,
+        amount: u64,
+    ) -> Result<()> {
+        instructions::transfer_using_legacy_delegate::handler(ctx, program_id, merchant_id, amount)
+    }
+
+    /// Update the admin in SpenderState. Both current and new admin must sign.
+    pub fn update_spender_admin(ctx: Context<UpdateSpenderAdmin>) -> Result<()> {
+        instructions::update_spender_admin::handler(ctx)
     }
 }

@@ -1,4 +1,5 @@
 use crate::{errors::ErrorCode, events::AccountClosed, state::BridgeCardsState, ID, STATE_SEED};
+use crate::instructions::initialize_spender_state::SPENDER_STATE_SEED;
 use anchor_lang::{prelude::*, solana_program::system_program};
 
 /**
@@ -54,10 +55,10 @@ pub struct CloseAccount<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// Program-derived account to be closed
-    /// Required permissions: Mutable (for closure)
+    /// Program-derived account to be closed. Must differ from payer to avoid
+    /// a self-transfer that would leave the account with non-zero lamports and empty data.
     /// CHECK: Account validity is verified through PDA derivation
-    #[account(mut)]
+    #[account(mut, constraint = account_to_close.key() != payer.key() @ ErrorCode::InvalidPda)]
     pub account_to_close: AccountInfo<'info>,
 
     /// Global program state storing the admin public key
@@ -101,8 +102,15 @@ pub fn handler(ctx: Context<CloseAccount>, input_seeds: Vec<Vec<u8>>) -> Result<
         return Err(ErrorCode::InvalidPda.into());
     }
 
-    // Prevent closing of program state account
+    // Prevent closing of either program state account.
+    // SpenderState is derived inline (not loaded as an account) to avoid changing
+    // the instruction's account list while still blocking accidental closure.
     if pda == ctx.accounts.state.key() {
+        return Err(ErrorCode::InvalidPda.into());
+    }
+    let (spender_state_pda, _) =
+        Pubkey::find_program_address(&[SPENDER_STATE_SEED], ctx.program_id);
+    if pda == spender_state_pda {
         return Err(ErrorCode::InvalidPda.into());
     }
 
@@ -117,19 +125,17 @@ pub fn handler(ctx: Context<CloseAccount>, input_seeds: Vec<Vec<u8>>) -> Result<
     Ok(())
 }
 
-/// Schedule an account for closure by transferring its rent-exempt balance to the recipient
+/// Closes an account and transfers its lamports to `recipient`.
+/// Zeros the source first to avoid double-counting if account_to_close == recipient.
 pub fn close_account_and_transfer_lamports<'info>(
     account_to_close: &AccountInfo<'info>,
     recipient: &AccountInfo<'info>,
 ) -> Result<()> {
-    // Transfer all lamports from the account to the recipient
     let lamports = account_to_close.lamports();
     **account_to_close.try_borrow_mut_lamports()? = 0;
-    **recipient.try_borrow_mut_lamports()? += lamports;
-
-    // realloc the account to 0 bytes
+    account_to_close.resize(0)?;
     account_to_close.assign(&system_program::ID);
-    account_to_close.realloc(0, false).unwrap();
+    recipient.add_lamports(lamports)?;
 
     Ok(())
 }

@@ -138,6 +138,44 @@ pub struct MerchantManagerState {
     pub bump: u8,
 }
 
+/// Global extension state for the Spender role system (governor/manager/debitor/pauser).
+/// Seeds: [b"spender_state"] — different from BridgeCardsState at [b"state"].
+#[account]
+#[derive(InitSpace)]
+pub struct SpenderState {
+    pub admin: Pubkey,
+    pub governor: Pubkey,
+    pub manager: Pubkey,
+    pub debitor: Pubkey,
+    pub pauser: Pubkey,
+    pub bump: u8,
+    pub paused: bool,
+}
+
+/// PDA that represents a merchant's signing authority for delegate-based transfers.
+/// Seeds: [b"merchant_delegate", merchant_id: [u8;32]]
+///
+/// `legacy_merchant_id`: when non-zero, this merchant was registered as the spender-system
+/// counterpart of a legacy u64 merchant ID. `transfer_using_legacy_delegate` requires the
+/// supplied `merchant_id: u64` to match this field, preventing a compromised debitor from
+/// routing a user's approval for Merchant A to destinations allowlisted under Merchant B.
+/// Zero means no legacy binding (not usable with `transfer_using_legacy_delegate`).
+#[account]
+#[derive(InitSpace)]
+pub struct MerchantDelegateState {
+    pub bump: u8,
+    pub legacy_merchant_id: u64,
+}
+
+/// Marks a token account as an allowlisted destination for a merchant (spender-style).
+/// Seeds: [b"merchant_destination", merchant_id: [u8;32], destination_ata]
+/// Different seed layout from legacy MerchantDestinationState (which includes mint and uses u64 merchant_id).
+#[account]
+#[derive(InitSpace)]
+pub struct DelegateDestinationState {
+    pub bump: u8,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

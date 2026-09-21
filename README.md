@@ -2,34 +2,38 @@
 
 ## Overview
 
-The Bridge Cards Program is a Solana-based payment system that enables secure, pull-based token transfers between users and card issuing merchants.
+The Bridge Cards Program is a Solana-based payment system that enables secure,
+pull-based token transfers between users and card issuing merchants.
 
-This program was designed to power the [Bridge Cards](https://www.bridge.xyz/product/cards) product.
+This program powers the [Bridge Cards](https://www.bridge.xyz/product/cards) product.
 
 ### How It Works
 
-The system allows users to grant spending permissions to a card issuing merchant through a secure delegation mechanism:
-
-1. **Setup**: Card issuers register with the system and configure their payment parameters.
-2. **User Approval**: Users approve specific spending limits for each card issuer they want to transact with for a given wallet.
-3. **Automated Payments**: Card issuing merchants can then charge users automatically within the approved limits.
+1. **Setup**: Bridge registers merchants and configures their payment destinations.
+2. **User Approval**: Users grant spending authority to a PDA derived from their token
+   account and a merchant ID. This is a one-time per-merchant-per-wallet step.
+3. **Payments**: Bridge's authorized debitor initiates transfers from the user's token
+   account to the merchant's destination account.
 
 ### Key Benefits
 
-- **Seamless Payments**: Enable recurring payments without requiring user signatures for each transaction.
-- **Granular Control**: Adminsters can set per-transaction and time-period spending limits for each merchant/user pair.
-- **Enhanced Security**: Multi-level permission system with admin oversight and issuer-merchant-level controls.
+- **Seamless Payments**: Enable recurring charges without requiring a user signature for
+  each transaction.
+- **Pausable**: A global pause switch can halt all new-style transfers instantly.
+- **Hierarchical Controls**: A layered role system (admin → governor → manager → debitor)
+  limits the blast radius of any single compromised key.
 
 ## Deployments
 
-| Network        | Account                                                                                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mainnet (beta) | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2)                |
+| Network        | Account |
+| -------------- | ------- |
+| Mainnet (beta) | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2) |
 | Devnet         | [`cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2`](https://explorer.solana.com/address/cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2?cluster=devnet) |
 
 ## Audits
 
-Bridge Cards was audited by [Zenith](https://zenith.security). You can find the report [here](/audits/Bridge-Cards-Zenith-Audit-Report.pdf).
+Bridge Cards was audited by [Zenith](https://zenith.security). You can find the report
+[here](/audits/Bridge-Cards-Zenith-Audit-Report.pdf).
 
 ---
 
@@ -37,140 +41,85 @@ Bridge Cards was audited by [Zenith](https://zenith.security). You can find the 
 
 ## Architecture Overview
 
-The Bridge Cards program implements a hierarchical permission model with multiple participant roles and safety controls.
+The program implements two coexisting systems:
 
-### Participant Roles
+- **Legacy system** — the original per-merchant role hierarchy, kept live while
+  `debit_user` is still in production use.
+- **Spender system** — a global role hierarchy with a pause switch, used by all new
+  transfer instructions.
 
-- **`Admin`**: Controls `merchant manager` permissions and destination accounts.
-- **`Merchant Manager`**: Manages `debitor` permissions and user delegate settings for a specific merchant.
-- **`Debitor`**: Entity authorized to initiate debits on behalf of a merchant.
-- **`User`**: Token holder who grants spending permissions to token-and-merchant-specific delegate PDAs.
+See [`SPENDER_MIGRATION.md`](./SPENDER_MIGRATION.md) for a full description of what
+changed, why, and how to migrate callers off the legacy path.
+
+### Roles
+
+#### Spender system (new)
+
+```
+admin
+ ├── governor
+ │    ├── manager
+ │    │    └── debitor  ← single global key that signs all new transfers
+ │    └── manages destination allowlist
+ └── pauser  ← can pause; cannot unpause (only admin/governor can unpause)
+```
+
+#### Legacy system
+
+```
+admin (BridgeCardsState)
+ └── merchant manager  (one per merchant)
+      └── debitor       (one per merchant)
+```
 
 ### Program Derived Addresses (PDAs)
 
-The program uses PDAs to maintain secure state and enforce permissions:
+#### Spender system
 
-- `MerchantManagerPDA`: Tracks authorized managers for each card issuing merchant.
-- `MerchantDebitorPDA`: Controls which addresses can initiate debits.
-- `MerchantDestinationPDA`: Manages approved token destination accounts.
-- `UserDelegatePDA`: Stores and enforces user-specified spending limits.
+| PDA | Seeds | Purpose |
+|-----|-------|---------|
+| `SpenderState` | `[b"spender_state"]` | Global roles and pause flag |
+| `MerchantDelegateState` | `[b"merchant_delegate", merchant_id: [u8;32]]` | Signing authority for delegate-based transfers |
+| `DelegateDestinationState` | `[b"merchant_destination", merchant_id: [u8;32], ata]` | Allowlisted destination for a merchant |
 
-### Transaction Flow
+#### Legacy system
 
-1. `Admin` sets up configuration for the given card issuing merchant .
-2. `Merchant managers` configure debitors and delegate parameters.
-3. Users approve delegate PDAs to spend from their token accounts.
-4. Authorized `debitors` initiate transfers within configured limits.
+| PDA | Seeds | Purpose |
+|-----|-------|---------|
+| `BridgeCardsState` | `[b"state"]` | Legacy admin key |
+| `MerchantManagerState` | `[b"merchant_manager", merchant_id_u64_le]` | Per-merchant manager key |
+| `MerchantDebitorState` | `[b"merchant_debitor", merchant_id_u64_le, mint, debitor]` | Per-merchant debitor authorization |
+| `MerchantDestinationState` | `[b"merchant_destination", merchant_id_u64_le, mint, ata]` | Per-merchant destination allowlist |
+| `UserDelegateState` | `[b"user_delegate", merchant_id_u64_le, mint, user_ata]` | User's delegated signing authority |
 
-## Flow Diagram
+### Transfer paths
 
-![Flow Diagram](./media/flow.svg)
+| Instruction | Debitor auth | Destination check | User auth | Pausable |
+|---|---|---|---|---|
+| `debit_user` | Per-merchant `MerchantDebitorState` | Legacy `MerchantDestinationState` | `UserDelegateState` PDA | No |
+| `transfer_using_legacy_delegate` | Global `SpenderState.debitor` | `DelegateDestinationState` | `UserDelegateState` PDA | Yes |
+| `transfer_using_single_delegate` | Global `SpenderState.debitor` | `DelegateDestinationState` | SPL `approve` to `MerchantDelegateState` | Yes |
+| `transfer_using_subscription_delegate` | Global `SpenderState.debitor` | `DelegateDestinationState` | Subscriptions program delegation | Yes |
 
-## Sequence Diagram
+`debit_user` is kept live for zero-downtime continuity. New integrations should use
+`transfer_using_legacy_delegate` (for users who approved the legacy PDA) or
+`transfer_using_single_delegate` / `transfer_using_subscription_delegate` (for new users).
 
-```mermaid
-sequenceDiagram
-    participant Admin (EOA)
-    participant MerchantManager (EOA)
-    participant User (EOA)
-    participant Debitor (EOA)
-    participant BridgeCards
-    participant MerchantManagerPDA
-    participant MerchantDebitorPDA
-    participant MerchantDestinationPDA
-    participant UserDelegatePDA
-    participant UserATA
-    participant TokenProgram
-    Admin (EOA)->>BridgeCards: add_or_update_merchant_manager(merchant_id)
-    BridgeCards->>MerchantManagerPDA: Initialize/Update Merchant Manager PDA
-    Admin (EOA)->>BridgeCards: add_or_update_merchant_destination(merchant_id, destination_allowed)
-    BridgeCards->>MerchantDestinationPDA: Initialize/Update Merchant Destination PDA
-    MerchantManager (EOA)->>BridgeCards: add_or_update_merchant_debitor(merchant_id, debitor_allowed)
-    BridgeCards->>MerchantDebitorPDA: Initialize/Update Merchant Debitor PDA
-    MerchantManager (EOA)->>BridgeCards: add_or_update_user_delegate(merchant_id, per_transfer_limit, period_transfer_limit, transfer_limit_period)
-    BridgeCards->>UserDelegatePDA: Initialize/Update User Delegate PDA
-    User (EOA)->>TokenProgram: Approve UserDelegatePDA as delegate for UserATA
-    Debitor (EOA)->>BridgeCards: debit_user(merchant_id, amount)
-    BridgeCards->>UserDelegatePDA: Validate transfer limits and update tracking
-    BridgeCards->>TokenProgram: Transfer tokens using delegate authority
-```
-
-## State Diagram
-
-```mermaid
-classDiagram
-class BridgeCardsState PDA {
-    <<b"state">>
-    +admin: Pubkey
-    +bump: u8
-    +initialize()
-    +add_or_update_merchant_manager(merchant_id: u64)
-    +add_or_update_merchant_destination(merchant_id: u64, destination_allowed: bool)
-    +add_or_update_merchant_debitor(merchant_id: u64, debitor_allowed: bool)
-    +add_or_update_user_delegate(merchant_id: u64, per_transfer_limit: u64, period_transfer_limit: u64, transfer_limit_period: u32)
-    +debit_user(merchant_id: u64, amount: u64)
-    +update_admin()
-    +close_account(input_seeds: Vec<Vec<u8>>)
-}
-
-class MerchantManagerState PDA {
-    <<b"merchant_manager", merchant_id>>
-    +manager: Pubkey
-    +bump: u8
-}
-
-class MerchantDebitorState PDA {
-    <<b"merchant_debitor", merchant_id, mint, debitor>>
-    +allowed: bool
-    +bump: u8
-}
-
-class MerchantDestinationState PDA {
-    <<b"merchant_destination", merchant_id, mint, destination_token_account>>
-    +allowed: bool
-    +bump: u8
-}
-
-class UserDelegateState PDA {
-    <<b"user_delegate", merchant_id, mint, user_token_account>>
-    +per_transfer_limit: u64
-    +period_transfer_limit: u64
-    +period_transferred_amount: u64
-    +period_timestamp_last_reset: u64
-    +transfer_limit_period_seconds: u32
-    +slot_last_transferred: u64
-    +bump: u8
-    +validate_debit_and_update(amount: u64, current_time: u64, current_slot: u64)
-}
-```
+---
 
 ## Client Integration
 
-Interacting with the program is very straightforward, and can be done via a single instruction to approve a delegate.
+From a user's perspective, integration is unchanged: grant spending authority by
+calling SPL `approve` with the `UserDelegateState` PDA as the delegate.
 
-All other interactions will be administered by Bridge.
+The PDA address is deterministic:
 
-## Spend Controls
+```
+seeds = ["user_delegate", merchant_id_le_bytes8, mint, user_ata]
+program = cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2
+```
 
-The Bridge Cards program provides spend and velocity controls in addition to user-level delegate permissions.
-
-| Control Type | Parameter | Description | Example | Error Code |
-|--------------|-----------|-------------|---------|------------|
-| **Per-Transaction Limit** | `max_transfer_limit` | Maximum amount allowed in a single transaction | $100 = `100_000_000` | `ExceedsMaxTransferLimit` |
-| **Period Transfer Limit** | `period_transfer_limit` | Maximum cumulative amount within a time period | $2,000/day = `2_000_000_000` | `ExceedsTransferLimitPerPeriod` |
-| **Transfer Period Duration** | `transfer_limit_period` | Duration of spending period in seconds | 1 day = `86400` seconds | N/A |
-| **Slot Rate Limiting** | N/A (automatic) | Prevents multiple transactions per Solana slot | Only 1 transaction per slot | `ExceedsMaxTransactionsPerSlot` |
-
-### How Spend Controls Work
-
-- **Transaction Validation**: Every debit request is validated against all active limits
-- **Period Tracking**: The system tracks spending within rolling time windows
-- **Automatic Reset**: Period limits reset automatically when the time window expires
-- **Real-time Updates**: Amounts are updated immediately after successful transactions
-
-All spend controls are configured by the `merchant manager` when setting up user delegate accounts.
-
-### Typescript
+### TypeScript
 
 ```typescript
 import {
@@ -180,7 +129,6 @@ import {
   Transaction,
   sendAndConfirmTransaction,
   clusterApiUrl,
-  LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -216,39 +164,20 @@ class BridgeSDK {
 }
 
 const PROGRAM_ID = new PublicKey("cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2");
-
-// USDC MINT
-const MINT_PUBKEY = new PublicKey(
-  "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
-);
-
-// Merchant ID -- this will be given to you by Bridge.
-const MERCHANT_ID = new BN(1);
-
+const MINT_PUBKEY = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"); // USDC
+const MERCHANT_ID = new BN(1); // provided by Bridge
 const MINT_DECIMALS = 6;
-const APPROVAL_AMOUNT_UI = 100;
-const APPROVAL_AMOUNT = BigInt(APPROVAL_AMOUNT_UI * 10 ** MINT_DECIMALS);
+const APPROVAL_AMOUNT = BigInt(100 * 10 ** MINT_DECIMALS);
 
 const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
 
 async function approveDelegate() {
-  // Sample keypair
   const userKeypair = Keypair.generate();
-
-  // Get the user's token account for the given currency.
-  const userAta = getAssociatedTokenAddressSync(
-    MINT_PUBKEY,
-    userKeypair.publicKey
-  );
+  const userAta = getAssociatedTokenAddressSync(MINT_PUBKEY, userKeypair.publicKey);
 
   const bridgeSdk = new BridgeSDK(PROGRAM_ID);
-  const [delegatePda] = bridgeSdk.findUserDelegatePDA(
-    MERCHANT_ID,
-    MINT_PUBKEY,
-    userAta
-  );
+  const [delegatePda] = bridgeSdk.findUserDelegatePDA(MERCHANT_ID, MINT_PUBKEY, userAta);
 
-  // Approve the BridgeCard contract to manage the user's token account.
   const approveInstruction = createApproveInstruction(
     userAta,
     delegatePda,
@@ -259,13 +188,9 @@ async function approveDelegate() {
   );
 
   const transaction = new Transaction().add(approveInstruction);
-
-  // You could optionally pay these fees on behalf of your users.
   transaction.feePayer = userKeypair.publicKey;
 
-  const signature = await sendAndConfirmTransaction(CONNECTION, transaction, [
-    userKeypair,
-  ]);
+  await sendAndConfirmTransaction(connection, transaction, [userKeypair]);
 }
 
 approveDelegate();
@@ -274,11 +199,7 @@ approveDelegate();
 ### Rust
 
 ```rust
-use solana_sdk::{
-    pubkey::Pubkey,
-    signature::Keypair,
-    transaction::Transaction,
-};
+use solana_sdk::{pubkey::Pubkey, signature::Keypair, transaction::Transaction};
 use solana_client::rpc_client::RpcClient;
 use spl_token::instruction::approve;
 use std::str::FromStr;
@@ -297,14 +218,14 @@ impl BridgeSDK {
     pub fn find_user_delegate_pda(
         &self,
         merchant_id: u64,
-        mint_pubkey: &Pubkey,
+        mint: &Pubkey,
         user_ata: &Pubkey,
     ) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
                 Self::USER_DELEGATE_SEED,
                 &merchant_id.to_le_bytes(),
-                mint_pubkey.as_ref(),
+                mint.as_ref(),
                 user_ata.as_ref(),
             ],
             &self.program_id,
@@ -314,61 +235,42 @@ impl BridgeSDK {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_id = Pubkey::from_str("cardWArqhdV5jeRXXjUti7cHAa4mj41Nj3Apc6RPZH2")?;
+    let mint = Pubkey::from_str("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr")?; // USDC
+    let merchant_id: u64 = 1; // provided by Bridge
 
-    // USDC MINT
-    let mint_pubkey = Pubkey::from_str("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr")?;
-
-    // Merchant ID -- this will be given to you by Bridge
-    let merchant_id: u64 = 1;
-
-    let mint_decimals = 6;
-    let approval_amount_ui = 100u64;
-    let approval_amount = approval_amount_ui * 10u64.pow(mint_decimals);
-
-    // Sample keypair
     let user_keypair = Keypair::new();
-
-    // Get the user's associated token account for the given currency
     let user_ata = spl_associated_token_account::get_associated_token_address(
         &user_keypair.pubkey(),
-        &mint_pubkey,
+        &mint,
     );
 
-    let bridge_sdk = BridgeSDK::new(program_id);
-    let (delegate_pda, _bump) = bridge_sdk.find_user_delegate_pda(
-        merchant_id,
-        &mint_pubkey,
-        &user_ata,
-    );
+    let sdk = BridgeSDK::new(program_id);
+    let (delegate_pda, _) = sdk.find_user_delegate_pda(merchant_id, &mint, &user_ata);
 
-    // Create RPC client
-    let rpc_client = RpcClient::new("https://api.devnet.solana.com".to_string());
-
-    // Create approve instruction
-    let approve_instruction = approve(
+    let rpc = RpcClient::new("https://api.devnet.solana.com");
+    let approve_ix = approve(
         &spl_token::ID,
         &user_ata,
         &delegate_pda,
         &user_keypair.pubkey(),
         &[],
-        approval_amount,
+        100 * 10u64.pow(6),
     )?;
 
-    // Build and send transaction
-    let transaction = Transaction::new_signed_with_payer(
-        &[approve_instruction],
+    let tx = Transaction::new_signed_with_payer(
+        &[approve_ix],
         Some(&user_keypair.pubkey()),
         &[&user_keypair],
-        rpc_client.get_latest_blockhash()?,
+        rpc.get_latest_blockhash()?,
     );
 
-    let signature = rpc_client.send_and_confirm_transaction(&transaction)?;
-    println!("Transaction signature: {}", signature);
-
+    let sig = rpc.send_and_confirm_transaction(&tx)?;
+    println!("Signature: {}", sig);
     Ok(())
 }
 ```
 
 ## Audits
 
-Bridge Cards was audited by [Zenith](https://zenith.security). You can find the report [here](/audits/Bridge-Cards-Zenith-Audit-Report.pdf).
+Bridge Cards was audited by [Zenith](https://zenith.security). You can find the report
+[here](/audits/Bridge-Cards-Zenith-Audit-Report.pdf).

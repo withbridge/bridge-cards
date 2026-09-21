@@ -16,3 +16,7 @@ pub mod debit_user_tests;
 pub mod initialize_tests;
 #[cfg(test)]
 pub mod update_admin_tests;
+#[cfg(test)]
+pub mod transfer_using_legacy_delegate_tests;
+#[cfg(test)]
+pub mod update_paused_tests;

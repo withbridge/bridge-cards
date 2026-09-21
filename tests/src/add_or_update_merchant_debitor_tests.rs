@@ -6,7 +6,7 @@ use bridge_cards::{
     accounts::AddOrUpdateMerchantDebitor, events::MerchantDebitorAddedOrUpdated,
     state::MerchantDebitorState,
 };
-use solana_program_test::tokio;
+use tokio;
 use solana_sdk::signature::Signer;
 
 const TEST_MERCHANT_ID: u64 = 1u64;

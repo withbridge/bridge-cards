@@ -1,13 +1,15 @@
 use crate::common::*;
+use anchor_lang::{InstructionData, ToAccountMetas};
 use anchor_lang::prelude::*;
 use anchor_lang::{error::ErrorCode, system_program};
 use base64;
 use bridge_cards::{
     accounts::CloseAccount, errors::ErrorCode as BridgeErrorCode, events::AccountClosed,
     instructions::add_or_update_merchant_debitor::MERCHANT_DEBITOR_SEED,
+    instructions::initialize_spender_state::SPENDER_STATE_SEED,
 };
-use solana_account::ReadableAccount;
-use solana_program_test::tokio;
+use solana_sdk::account::ReadableAccount;
+use tokio;
 use solana_sdk::signature::Signer;
 
 const TEST_MERCHANT_ID: u64 = 1;
@@ -288,5 +290,45 @@ async fn test_close_account_invalid_pda() {
             .any(|log| log.contains(&expected_error)),
         "Error should contain InvalidPda, got {}",
         err.meta.logs.join(", ")
+    );
+}
+
+#[tokio::test]
+async fn test_close_account_cannot_close_spender_state() {
+    // The legacy BridgeCardsState admin must not be able to brick the spender system
+    // by closing SpenderState.
+    let mut ctx = setup_and_initialize();
+    let _spender_ctx = setup_spender_state(&mut ctx);
+
+    let spender_state_pda = make_pda(&[SPENDER_STATE_SEED], &ctx.program_id);
+
+    let close_accounts = CloseAccount {
+        admin: ctx.payer_pk,
+        payer: ctx.payer_pk,
+        account_to_close: spender_state_pda.pubkey,
+        state: ctx.bridge_cards_state.pubkey,
+    };
+
+    let ix = create_close_account_instruction(
+        &ctx,
+        &close_accounts,
+        vec![SPENDER_STATE_SEED.to_vec()],
+    );
+    let tx = create_transaction_with_payer_and_signers(
+        &ctx,
+        &[ix],
+        Some(&ctx.payer_pk),
+        &[&ctx.payer_kp],
+    );
+
+    let result = submit_transaction(&mut ctx, tx);
+    assert!(
+        result.is_err(),
+        "legacy close_account must not be able to close SpenderState"
+    );
+    let err_str = format!("{:?}", result.err());
+    assert!(
+        err_str.contains(&BridgeErrorCode::InvalidPda.to_string()),
+        "expected InvalidPda, got: {err_str}"
     );
 }

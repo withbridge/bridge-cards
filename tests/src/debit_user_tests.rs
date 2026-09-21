@@ -6,7 +6,7 @@ use bridge_cards::state::UserDelegateState;
 use litesvm_token::spl_token;
 use litesvm_token::CreateAssociatedTokenAccountIdempotent;
 use litesvm_token::*;
-use solana_program_test::tokio;
+use tokio;
 use solana_sdk::signature::{Keypair, Signer};
 
 type TestContext = crate::common::Context;
@@ -178,7 +178,7 @@ fn verify_token_account_balance(
         }
         TokenProgram::Token2022 => {
             let account_info =
-                get_spl_account::<spl_token_2022::state::Account>(&ctx.svm, token_account).unwrap();
+                get_spl_account::<spl_token::state::Account>(&ctx.svm, token_account).unwrap();
             assert_eq!(account_info.amount, expected_amount, "{}", error_msg);
         }
     }
@@ -257,18 +257,6 @@ parameterized_token_test!(
             "Destination token account balance incorrect",
         );
 
-        // Verify user delegate state was updated
-        let user_delegate_account = ctx
-            .svm
-            .get_account(&debit_context.user_delegate_pda)
-            .unwrap();
-        let user_delegate_state =
-            UserDelegateState::try_deserialize(&mut user_delegate_account.data.as_slice()).unwrap();
-
-        assert_eq!(
-            user_delegate_state.period_transferred_amount, DEBIT_AMOUNT,
-            "User delegate transferred amount incorrect"
-        );
     }
 );
 
@@ -314,33 +302,20 @@ parameterized_token_test!(
             &[&ctx.payer_kp, &debit_context.debitor_kp],
         );
 
-        // Execute the transaction - should fail with ExceedsMaxTransferLimit
+        // Velocity controls removed: amounts above the old per-transfer limit are now allowed.
         let result = submit_transaction(&mut ctx, debit_tx);
         assert!(
-            result.is_err(),
-            "Transaction should fail due to exceeding max transfer limit"
+            result.is_ok(),
+            "Transaction should succeed (velocity controls removed): {:?}",
+            result.err()
         );
 
-        // Verify the error matches ExceedsMaxTransferLimit
-        let err = result.err().unwrap();
-        let expected_message = ErrorCode::ExceedsMaxTransferLimit.to_string();
-        assert!(
-            err.meta
-                .logs
-                .iter()
-                .any(|log| log.contains(&expected_message)),
-            "Error should contain the expected error message {}, got {}",
-            expected_message,
-            err.meta.logs.join(", ")
-        );
-
-        // Verify user token account balance remains unchanged
         verify_token_account_balance(
             &ctx,
             &debit_context.user_token_account,
-            INITIAL_BALANCE,
+            INITIAL_BALANCE - excessive_amount,
             token_program,
-            "User token account balance should remain unchanged",
+            "User token account balance should reflect the transfer",
         );
     }
 );
@@ -504,18 +479,6 @@ parameterized_token_test!(
             "User token account balance incorrect after period reset",
         );
 
-        // Verify user delegate state was reset
-        let user_delegate_account = ctx
-            .svm
-            .get_account(&debit_context.user_delegate_pda)
-            .unwrap();
-        let user_delegate_state =
-            UserDelegateState::try_deserialize(&mut user_delegate_account.data.as_slice()).unwrap();
-
-        assert_eq!(
-            user_delegate_state.period_transferred_amount, DEBIT_AMOUNT,
-            "User delegate transferred amount should be reset and then incremented again"
-        );
     }
 );
 
@@ -585,32 +548,20 @@ parameterized_token_test!(
             &[&ctx.payer_kp, &debit_context.debitor_kp],
         );
 
-        // Execute the transaction - should fail with ExceedsTransferLimitPerPeriod
+        // Velocity controls removed: period limits are no longer enforced.
         let result = submit_transaction(&mut ctx, debit_tx2);
         assert!(
-            result.is_err(),
-            "Transaction should fail due to exceeding period transfer limit"
-        );
-        // Verify the error matches ExceedsTransferLimitPerPeriod
-        let expected_message = ErrorCode::ExceedsTransferLimitPerPeriod.to_string();
-        let err = result.err().unwrap();
-        assert!(
-            err.meta
-                .logs
-                .iter()
-                .any(|log| log.contains(&expected_message)),
-            "Error should contain the expected error message {}, got {}",
-            expected_message,
-            err.meta.logs.join(", ")
+            result.is_ok(),
+            "Transaction should succeed (velocity controls removed): {:?}",
+            result.err()
         );
 
-        // Verify user token account balance only reflects the first debit
         verify_token_account_balance(
             &ctx,
             &debit_context.user_token_account,
-            INITIAL_BALANCE - first_amount,
+            INITIAL_BALANCE - first_amount - second_amount,
             token_program,
-            "User token account balance should only reflect the first debit",
+            "User token account balance should reflect both debits",
         );
     }
 );
@@ -1129,18 +1080,6 @@ parameterized_token_test!(
             "User token account balance incorrect after multiple transactions",
         );
 
-        // Verify user delegate state accumulated all transactions
-        let user_delegate_account = ctx
-            .svm
-            .get_account(&debit_context.user_delegate_pda)
-            .unwrap();
-        let user_delegate_state =
-            UserDelegateState::try_deserialize(&mut user_delegate_account.data.as_slice()).unwrap();
-
-        assert_eq!(
-            user_delegate_state.period_transferred_amount, total_debit_amount,
-            "User delegate transferred amount should accumulate all transactions"
-        );
     }
 );
 
@@ -1204,36 +1143,23 @@ parameterized_token_test!(
             &[&ctx.payer_kp, &debit_context.debitor_kp],
         );
 
-        // Execute second transaction - should fail with ExceedsMaxTransactionsPerSlot
+        // Velocity controls removed: multiple debits in the same slot are now allowed.
         let result2 = submit_transaction(&mut ctx, debit_tx2);
         assert!(
-            result2.is_err(),
-            "Transaction should fail due to same slot transaction"
+            result2.is_ok(),
+            "Second debit in same slot should succeed (velocity controls removed): {:?}",
+            result2.err()
         );
 
-        // Verify the error matches ExceedsMaxTransactionsPerSlot
-        let err = result2.err().unwrap();
-        let expected_message = ErrorCode::ExceedsMaxTransactionsPerSlot.to_string();
-        assert!(
-            err.meta
-                .logs
-                .iter()
-                .any(|log| log.contains(&expected_message)),
-            "Error should contain the expected error message {}, got {}",
-            expected_message,
-            err.meta.logs.join("\n")
-        );
-
-        // Verify user token account balance only reflects the first debit
         verify_token_account_balance(
             &ctx,
             &debit_context.user_token_account,
-            INITIAL_BALANCE - DEBIT_AMOUNT,
+            INITIAL_BALANCE - (DEBIT_AMOUNT * 2),
             token_program,
-            "User token account balance should only reflect the first debit",
+            "User token account balance should reflect two debits",
         );
 
-        // Third debit in different slot should succeed
+        // Third debit in different slot should also succeed
         let mut new_clock = ctx.svm.get_sysvar::<Clock>();
         new_clock.slot += 1;
         ctx.svm.set_sysvar(&new_clock);
@@ -1259,13 +1185,13 @@ parameterized_token_test!(
             result3.err()
         );
 
-        // Verify final balance reflects two successful debits
+        // Verify final balance reflects all three debits
         verify_token_account_balance(
             &ctx,
             &debit_context.user_token_account,
-            INITIAL_BALANCE - (DEBIT_AMOUNT * 2),
+            INITIAL_BALANCE - (DEBIT_AMOUNT * 3),
             token_program,
-            "User token account balance should reflect two successful debits",
+            "User token account balance should reflect three successful debits",
         );
     }
 );

@@ -28,7 +28,7 @@ impl TokenProgram {
     pub fn program_id(&self) -> Pubkey {
         match self {
             TokenProgram::Token => spl_token::id(),
-            TokenProgram::Token2022 => spl_token_2022::id(),
+            TokenProgram::Token2022 => anchor_spl::token_2022::ID,
         }
     }
 }
@@ -475,6 +475,148 @@ pub fn create_debit_user_instruction_with_program(
         accounts: accounts.to_account_metas(None),
         data: ix_data,
     }
+}
+
+// ── Spender system helpers ─────────────────────────────────────────────────
+
+use bridge_cards::accounts::{InitializeSpenderState, SetupMerchantDelegate};
+use bridge_cards::instructions::initialize_spender_state::SPENDER_STATE_SEED;
+use bridge_cards::instructions::setup_merchant_delegate::{
+    DELEGATE_DESTINATION_SEED, MERCHANT_DELEGATE_SEED,
+};
+use bridge_cards::state::SpenderState;
+
+pub struct SpenderContext {
+    pub spender_state: PDAWithBump,
+    pub debitor_kp: Keypair,
+    pub debitor_pk: Pubkey,
+}
+
+pub fn setup_spender_state(ctx: &mut Context) -> SpenderContext {
+    let debitor_kp = Keypair::new();
+    let debitor_pk = debitor_kp.pubkey();
+    ctx.svm.airdrop(&debitor_pk, 1_000_000_000).unwrap();
+
+    let spender_state = make_pda(&[SPENDER_STATE_SEED], &ctx.program_id);
+
+    // Use payer as admin/governor/manager/pauser for simplicity in tests
+    let admin = ctx.payer_pk;
+    let accounts = InitializeSpenderState {
+        payer: ctx.payer_pk,
+        admin,
+        bridge_cards_state: ctx.bridge_cards_state.pubkey,
+        spender_state: spender_state.pubkey,
+        system_program: anchor_lang::system_program::ID,
+    };
+    let ix_data = bridge_cards::instruction::InitializeSpenderState {
+        admin,
+        governor: admin,
+        manager: admin,
+        debitor: debitor_pk,
+        pauser: admin,
+    }
+    .data();
+    let ix = Instruction {
+        program_id: ctx.program_id,
+        accounts: accounts.to_account_metas(None),
+        data: ix_data,
+    };
+    // payer also acts as admin (bridge_cards_state.admin == payer_pk from initialize)
+    let tx = create_transaction_with_payer_and_signers(
+        ctx,
+        &[ix],
+        Some(&ctx.payer_pk),
+        &[&ctx.payer_kp],
+    );
+    submit_transaction(ctx, tx).unwrap();
+
+    SpenderContext {
+        spender_state,
+        debitor_kp,
+        debitor_pk,
+    }
+}
+
+pub fn make_merchant_delegate_pda(
+    merchant_id_bytes: &[u8; 32],
+    program_id: &Pubkey,
+) -> PDAWithBump {
+    make_pda(&[MERCHANT_DELEGATE_SEED, merchant_id_bytes], program_id)
+}
+
+pub fn make_delegate_destination_pda(
+    merchant_id_bytes: &[u8; 32],
+    destination_ata: &Pubkey,
+    program_id: &Pubkey,
+) -> PDAWithBump {
+    make_pda(
+        &[DELEGATE_DESTINATION_SEED, merchant_id_bytes, destination_ata.as_ref()],
+        program_id,
+    )
+}
+
+/// Registers a legacy merchant: creates MerchantDelegateState and allowlists a destination.
+/// Returns (merchant_delegate_pda, delegate_destination_pda, destination_ata).
+pub fn setup_legacy_merchant_delegate(
+    ctx: &mut Context,
+    spender_ctx: &SpenderContext,
+    merchant_id_bytes32: &[u8; 32],
+    legacy_merchant_id: u64,
+    mint_pk: &Pubkey,
+    destination_owner: &Pubkey,
+    token_program: TokenProgram,
+) -> (Pubkey, Pubkey, Pubkey) {
+    let merchant_delegate_pda =
+        make_merchant_delegate_pda(merchant_id_bytes32, &ctx.program_id);
+
+    let destination_ata =
+        CreateAssociatedTokenAccountIdempotent::new(&mut ctx.svm, &ctx.payer_kp, mint_pk)
+            .owner(destination_owner)
+            .token_program_id(&token_program.program_id())
+            .send()
+            .unwrap();
+
+    let delegate_dest_pda =
+        make_delegate_destination_pda(merchant_id_bytes32, &destination_ata, &ctx.program_id);
+
+    // setup_merchant_delegate (with destination in remaining_accounts)
+    let accounts = SetupMerchantDelegate {
+        payer: ctx.payer_pk,
+        manager: ctx.payer_pk, // payer == manager in test spender state
+        spender_state: spender_ctx.spender_state.pubkey,
+        merchant_delegate_state: merchant_delegate_pda.pubkey,
+        system_program: anchor_lang::system_program::ID,
+    };
+    let ix_data = bridge_cards::instruction::SetupMerchantDelegate {
+        merchant_id: *merchant_id_bytes32,
+        legacy_merchant_id,
+    }
+    .data();
+
+    let mut metas = accounts.to_account_metas(None);
+    metas.push(solana_sdk::instruction::AccountMeta::new(
+        destination_ata,
+        false,
+    ));
+    metas.push(solana_sdk::instruction::AccountMeta::new(
+        delegate_dest_pda.pubkey,
+        false,
+    ));
+
+    let ix = Instruction {
+        program_id: ctx.program_id,
+        accounts: metas,
+        data: ix_data,
+    };
+    let tx = create_transaction_with_payer_and_signers(
+        ctx,
+        &[ix],
+        Some(&ctx.payer_pk),
+        &[&ctx.payer_kp],
+    );
+    submit_transaction(ctx, tx).unwrap();
+
+    (merchant_delegate_pda.pubkey, delegate_dest_pda.pubkey, destination_ata)
 }
 
 pub fn create_close_account_instruction(

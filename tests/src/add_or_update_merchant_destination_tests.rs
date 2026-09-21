@@ -8,7 +8,7 @@ use bridge_cards::{
 };
 use litesvm_token::CreateAssociatedTokenAccountIdempotent;
 
-use solana_program_test::tokio;
+use tokio;
 
 #[tokio::test]
 async fn test_create_merchant_destination() {
