@@ -81,7 +81,7 @@ entirely once all callers have switched to `transfer_using_legacy_delegate`.
 
 | Instruction | Notes |
 |---|---|
-| `initialize_spender_state` | Creates `SpenderState` at seed `b"spender_state"` (different from `BridgeCardsState` at `b"state"`). Requires program keypair signature in production. |
+| `initialize_spender_state` | Creates `SpenderState` at seed `b"spender_state"`. Requires the existing `BridgeCardsState` admin to sign. |
 | `update_governor` | Sets `SpenderState.governor`. Called by admin. |
 | `update_manager` | Sets `SpenderState.manager`. Called by governor. |
 | `update_debitor` | Sets `SpenderState.debitor`. Called by manager. |
