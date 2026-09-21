@@ -92,6 +92,15 @@ pub fn handler<'info>(
 ) -> Result<()> {
     require!(!ctx.accounts.spender_state.paused, ErrorCode::ProgramPaused);
     require!(amount > 0, ErrorCode::InvalidAmount);
+
+    // Validate cross-identifier binding: the [u8;32] program_id must map to this exact
+    // u64 merchant_id. Prevents a compromised debitor from using a user's approval for
+    // Merchant A to transfer funds to destinations allowlisted under Merchant B.
+    require!(
+        ctx.accounts.merchant_delegate_state.legacy_merchant_id != 0
+            && ctx.accounts.merchant_delegate_state.legacy_merchant_id == merchant_id,
+        ErrorCode::LegacyMerchantIdMismatch
+    );
     require!(
         ctx.accounts.user_ata.mint == ctx.accounts.token_mint.key(),
         ErrorCode::InvalidPda

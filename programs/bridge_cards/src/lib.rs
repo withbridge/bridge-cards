@@ -209,11 +209,15 @@ pub mod bridge_cards {
     }
 
     /// Create a MerchantDelegateState PDA and optionally bulk-initialize destination allowlist entries.
+    /// `legacy_merchant_id`: set to the corresponding u64 merchant ID when registering a legacy
+    /// merchant, so that `transfer_using_legacy_delegate` can validate the cross-identifier binding.
+    /// Pass 0 for merchants that are not part of the legacy migration.
     pub fn setup_merchant_delegate<'info>(
         ctx: Context<'info, SetupMerchantDelegate<'info>>,
         merchant_id: [u8; 32],
+        legacy_merchant_id: u64,
     ) -> Result<()> {
-        instructions::setup_merchant_delegate::handler(ctx, merchant_id)
+        instructions::setup_merchant_delegate::handler(ctx, merchant_id, legacy_merchant_id)
     }
 
     /// Allowlist a token account as a valid delegate transfer destination for a merchant.

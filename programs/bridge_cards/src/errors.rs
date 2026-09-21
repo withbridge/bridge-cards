@@ -88,4 +88,10 @@ pub enum ErrorCode {
     /// Returned when the signer is not authorized for the requested operation.
     #[msg("Unauthorized")]
     Unauthorized,
+
+    /// Returned by transfer_using_legacy_delegate when the supplied u64 merchant_id
+    /// does not match the legacy_merchant_id recorded in MerchantDelegateState, or when
+    /// the merchant was not registered as a legacy merchant (legacy_merchant_id == 0).
+    #[msg("merchant_id does not match the legacy_merchant_id registered for this program_id")]
+    LegacyMerchantIdMismatch,
 }

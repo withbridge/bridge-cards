@@ -123,6 +123,7 @@ pub struct UserDebited {
 
 #[event]
 pub struct SpenderStateInitialized {
+    pub admin: Pubkey,
     pub governor: Pubkey,
     pub manager: Pubkey,
     pub debitor: Pubkey,

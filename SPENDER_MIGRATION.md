@@ -174,7 +174,9 @@ anchor call initialize_spender_state \
 
 # 2. For each legacy merchant, register its u64 ID as a [u8; 32] program_id.
 #    Encode the u64 as little-endian bytes zero-padded to 32 bytes.
-anchor call setup_merchant_delegate --args <merchant_id_bytes32>
+#    Pass the original u64 as legacy_merchant_id so the cross-identifier binding
+#    is recorded on-chain (required for transfer_using_legacy_delegate).
+anchor call setup_merchant_delegate --args <merchant_id_bytes32> <legacy_merchant_id_u64>
 
 # 3. Allowlist destination accounts for each merchant under the new system.
 anchor call add_delegate_destination --args <merchant_id_bytes32>

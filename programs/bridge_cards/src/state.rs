@@ -154,10 +154,17 @@ pub struct SpenderState {
 
 /// PDA that represents a merchant's signing authority for delegate-based transfers.
 /// Seeds: [b"merchant_delegate", merchant_id: [u8;32]]
+///
+/// `legacy_merchant_id`: when non-zero, this merchant was registered as the spender-system
+/// counterpart of a legacy u64 merchant ID. `transfer_using_legacy_delegate` requires the
+/// supplied `merchant_id: u64` to match this field, preventing a compromised debitor from
+/// routing a user's approval for Merchant A to destinations allowlisted under Merchant B.
+/// Zero means no legacy binding (not usable with `transfer_using_legacy_delegate`).
 #[account]
 #[derive(InitSpace)]
 pub struct MerchantDelegateState {
     pub bump: u8,
+    pub legacy_merchant_id: u64,
 }
 
 /// Marks a token account as an allowlisted destination for a merchant (spender-style).

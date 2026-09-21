@@ -46,8 +46,10 @@ pub struct SetupMerchantDelegate<'info> {
 pub fn handler<'info>(
     ctx: Context<'info, SetupMerchantDelegate<'info>>,
     merchant_id: [u8; 32],
+    legacy_merchant_id: u64,
 ) -> Result<()> {
     ctx.accounts.merchant_delegate_state.bump = ctx.bumps.merchant_delegate_state;
+    ctx.accounts.merchant_delegate_state.legacy_merchant_id = legacy_merchant_id;
 
     require!(
         ctx.remaining_accounts.len() % 2 == 0,

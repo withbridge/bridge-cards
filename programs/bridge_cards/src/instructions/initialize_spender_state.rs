@@ -67,6 +67,7 @@ pub fn handler(
     state.paused = false;
 
     emit!(SpenderStateInitialized {
+        admin,
         governor,
         manager,
         debitor,
