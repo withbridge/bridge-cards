@@ -1,12 +1,13 @@
-//! Pauses or unpauses all delegate-based token transfers program-wide. Called by admin or pauser.
+//! Pauses or unpauses all delegate-based token transfers program-wide.
+//! Pausing: admin, governor, or pauser.
+//! Unpausing: admin or governor only (pauser cannot unpause).
 
-use crate::{events::ProgramPauseUpdated, state::SpenderState};
+use crate::{errors::ErrorCode, events::ProgramPauseUpdated, state::SpenderState};
 use crate::instructions::initialize_spender_state::SPENDER_STATE_SEED;
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct UpdatePaused<'info> {
-    #[account(constraint = signer.key() == spender_state.admin || signer.key() == spender_state.pauser)]
     pub signer: Signer<'info>,
 
     #[account(
@@ -18,6 +19,23 @@ pub struct UpdatePaused<'info> {
 }
 
 pub fn handler(ctx: Context<UpdatePaused>, paused: bool) -> Result<()> {
+    let state = &ctx.accounts.spender_state;
+    let signer = ctx.accounts.signer.key();
+
+    if paused {
+        // Pausing: admin, governor, or pauser may pause.
+        require!(
+            signer == state.admin || signer == state.governor || signer == state.pauser,
+            ErrorCode::Unauthorized
+        );
+    } else {
+        // Unpausing: only admin or governor.
+        require!(
+            signer == state.admin || signer == state.governor,
+            ErrorCode::Unauthorized
+        );
+    }
+
     ctx.accounts.spender_state.paused = paused;
     emit!(ProgramPauseUpdated { paused });
     Ok(())

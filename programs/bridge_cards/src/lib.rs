@@ -251,4 +251,21 @@ pub mod bridge_cards {
     ) -> Result<()> {
         instructions::transfer_using_subscription_delegate::handler(ctx, merchant_id, delegator, mint, amount)
     }
+
+    /// Transfer tokens using the legacy user-delegate PDA, validated against the new spender
+    /// access control and destination allowlist. The future successor to debit_user for legacy
+    /// PDA users. Pausable. No velocity controls.
+    pub fn transfer_using_legacy_delegate<'info>(
+        ctx: Context<'info, TransferUsingLegacyDelegate<'info>>,
+        program_id: [u8; 32],
+        merchant_id: u64,
+        amount: u64,
+    ) -> Result<()> {
+        instructions::transfer_using_legacy_delegate::handler(ctx, program_id, merchant_id, amount)
+    }
+
+    /// Update the admin in SpenderState. Both current and new admin must sign.
+    pub fn update_spender_admin(ctx: Context<UpdateSpenderAdmin>) -> Result<()> {
+        instructions::update_spender_admin::handler(ctx)
+    }
 }

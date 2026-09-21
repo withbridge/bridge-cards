@@ -42,11 +42,11 @@ pub struct DebitUser<'info> {
     /// CHECK: Can be any account with sufficient SOL
     pub payer: Signer<'info>,
 
-    /// Program Derived Address (PDA) that stores the delegate's transfer limits and state
-    /// This account acts as the authority for the user's token account
+    /// PDA that acts as the authority for the user's token account.
+    /// Kept writable to preserve the original account interface; velocity fields are stale
+    /// and no longer updated (velocity checks removed).
     ///
     /// Seeds: [USER_DELEGATE_SEED, merchant_id, mint, user_token_account]
-    /// Required permissions: Mutable (updates period tracking)
     #[account(mut,
         seeds = [USER_DELEGATE_SEED, merchant_id.to_le_bytes().as_ref(), mint.key().as_ref(), user_token_account.key().as_ref()],
         bump = user_delegate_account.bump,
@@ -100,27 +100,13 @@ pub struct DebitUser<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
-/**
- * Process a debit operation from a user's token account.
- *
- * @param ctx The instruction context containing all required accounts
- * @param merchant_id Unique identifier for the merchant
- * @param amount Number of tokens to transfer (in smallest units)
- *
- * Security:
- * - Validates transfer limits and updates period tracking
- * - Uses PDA as authority for token transfer
- * - Performs checked transfer to validate amount and mint
- *
- * @return Result indicating success or containing an error
- */
+/// Process a debit operation from a user's token account via the legacy user delegate PDA.
+///
+/// NOTE: debit_user is intentionally NOT pausable. It is kept for production continuity
+/// while transfer_using_legacy_delegate (the new path) is rolled out. Velocity checks
+/// have been removed; stale UserDelegateState values are left in-place.
+/// A future migration will fully remove this instruction.
 pub fn handler(ctx: Context<DebitUser>, merchant_id: u64, amount: u64) -> Result<()> {
-    // Validate transfer limits and update period tracking
-    let clock = Clock::get()?;
-    ctx.accounts
-        .user_delegate_account
-        .validate_debit_and_update(amount, clock.unix_timestamp as u64, clock.slot)?;
-
     // Derive the PDA signer seeds for the delegate account
     let merchant_id_bytes = merchant_id.to_le_bytes();
     let seeds = [

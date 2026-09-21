@@ -84,4 +84,8 @@ pub enum ErrorCode {
     /// Returned when amount is zero.
     #[msg("Invalid amount, must be greater than zero")]
     InvalidAmount,
+
+    /// Returned when the signer is not authorized for the requested operation.
+    #[msg("Unauthorized")]
+    Unauthorized,
 }

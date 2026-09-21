@@ -199,3 +199,23 @@ pub struct PauserAdded {
 pub struct ProgramPauseUpdated {
     pub paused: bool,
 }
+
+/// Emitted by transfer_using_legacy_delegate: a debit via the legacy user-delegate PDA
+/// where destination is validated against the new spender-style allowlist.
+#[event]
+pub struct LegacyDelegateTransfer {
+    /// New-style merchant ID used for destination allowlist validation.
+    pub program_id: [u8; 32],
+    /// Legacy u64 merchant ID used to derive the user delegate PDA.
+    pub legacy_merchant_id: u64,
+    pub user: Pubkey,
+    pub receiver: Pubkey,
+    pub debitor: Pubkey,
+    pub amount: u64,
+}
+
+/// Emitted when the admin in SpenderState is updated.
+#[event]
+pub struct SpenderAdminUpdated {
+    pub admin: Pubkey,
+}

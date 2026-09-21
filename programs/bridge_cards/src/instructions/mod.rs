@@ -54,3 +54,9 @@ pub use transfer_using_single_delegate::*;
 
 pub mod transfer_using_subscription_delegate;
 pub use transfer_using_subscription_delegate::*;
+
+pub mod transfer_using_legacy_delegate;
+pub use transfer_using_legacy_delegate::*;
+
+pub mod update_spender_admin;
+pub use update_spender_admin::*;
