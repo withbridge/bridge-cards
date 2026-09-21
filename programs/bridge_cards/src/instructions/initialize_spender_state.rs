@@ -1,12 +1,16 @@
 //! Creates the global SpenderState PDA. Can only be called once (Anchor rejects re-init).
 //! Holds the governor/manager/debitor/pauser roles for the spender-style delegation system.
 //! Uses seed "spender_state" to avoid collision with BridgeCardsState at "state".
+//!
+//! Requires the existing BridgeCardsState admin to sign, ensuring only the party that
+//! already controls the program can bootstrap the new role hierarchy.
 
 use crate::{
     errors::ErrorCode,
     events::SpenderStateInitialized,
-    state::SpenderState,
+    state::{BridgeCardsState, SpenderState},
 };
+use crate::instructions::legacy::initialize::STATE_SEED;
 use anchor_lang::prelude::*;
 
 pub const SPENDER_STATE_SEED: &[u8] = b"spender_state";
@@ -16,6 +20,17 @@ pub struct InitializeSpenderState<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    /// Must be the current BridgeCardsState admin — proves continuity of control.
+    #[account(constraint = admin.key() == bridge_cards_state.admin @ ErrorCode::Unauthorized)]
+    pub admin: Signer<'info>,
+
+    /// Existing legacy state, used only to verify the admin's identity.
+    #[account(
+        seeds = [STATE_SEED],
+        bump = bridge_cards_state.bump,
+    )]
+    pub bridge_cards_state: Account<'info, BridgeCardsState>,
+
     #[account(
         init,
         payer = payer,
@@ -24,11 +39,6 @@ pub struct InitializeSpenderState<'info> {
         bump,
     )]
     pub spender_state: Account<'info, SpenderState>,
-
-    /// Production: must be the program's own deploy keypair (pubkey == program ID).
-    /// Local/test builds: any signer is accepted.
-    #[account(constraint = auth_initialize_spender(program_account.key()))]
-    pub program_account: Signer<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -64,15 +74,4 @@ pub fn handler(
     });
 
     Ok(())
-}
-
-#[cfg(feature = "local")]
-fn auth_initialize_spender(_: Pubkey) -> bool {
-    true
-}
-
-#[cfg(not(feature = "local"))]
-fn auth_initialize_spender(account: Pubkey) -> bool {
-    use crate::ID;
-    account == ID
 }
