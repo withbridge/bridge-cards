@@ -1,4 +1,5 @@
 use crate::{errors::ErrorCode, events::AccountClosed, state::BridgeCardsState, ID, STATE_SEED};
+use crate::instructions::initialize_spender_state::SPENDER_STATE_SEED;
 use anchor_lang::{prelude::*, solana_program::system_program};
 
 /**
@@ -101,8 +102,15 @@ pub fn handler(ctx: Context<CloseAccount>, input_seeds: Vec<Vec<u8>>) -> Result<
         return Err(ErrorCode::InvalidPda.into());
     }
 
-    // Prevent closing of program state account
+    // Prevent closing of either program state account.
+    // SpenderState is derived inline (not loaded as an account) to avoid changing
+    // the instruction's account list while still blocking accidental closure.
     if pda == ctx.accounts.state.key() {
+        return Err(ErrorCode::InvalidPda.into());
+    }
+    let (spender_state_pda, _) =
+        Pubkey::find_program_address(&[SPENDER_STATE_SEED], ctx.program_id);
+    if pda == spender_state_pda {
         return Err(ErrorCode::InvalidPda.into());
     }
 
