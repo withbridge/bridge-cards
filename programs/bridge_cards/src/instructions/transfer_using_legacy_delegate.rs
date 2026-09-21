@@ -12,7 +12,7 @@
 //! - IS pausable via SpenderState.
 //! - No velocity controls.
 
-use crate::instructions::add_or_update_user_delegate::USER_DELEGATE_SEED;
+use crate::instructions::legacy::add_or_update_user_delegate::USER_DELEGATE_SEED;
 use crate::instructions::initialize_spender_state::SPENDER_STATE_SEED;
 use crate::instructions::setup_merchant_delegate::{
     DELEGATE_DESTINATION_SEED, MERCHANT_DELEGATE_SEED,

@@ -1,5 +1,5 @@
 use crate::events::MerchantDestinationAddedOrUpdated;
-use crate::instructions::initialize::STATE_SEED;
+use super::initialize::STATE_SEED;
 use crate::state::{BridgeCardsState, MerchantDestinationState};
 use crate::ID;
 use anchor_lang::prelude::*;

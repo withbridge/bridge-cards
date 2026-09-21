@@ -1,5 +1,5 @@
 use crate::events::AdminUpdated;
-use crate::instructions::initialize::STATE_SEED;
+use super::initialize::STATE_SEED;
 use crate::state::BridgeCardsState;
 use crate::ID;
 use anchor_lang::prelude::*;

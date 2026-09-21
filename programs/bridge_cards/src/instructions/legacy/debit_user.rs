@@ -1,5 +1,5 @@
 use crate::events::UserDebited;
-use crate::instructions::add_or_update_user_delegate::USER_DELEGATE_SEED;
+use super::add_or_update_user_delegate::USER_DELEGATE_SEED;
 use crate::state::{MerchantDebitorState, MerchantDestinationState, UserDelegateState};
 use crate::ID;
 use crate::{MERCHANT_DEBITOR_SEED, MERCHANT_DESTINATION_SEED};
