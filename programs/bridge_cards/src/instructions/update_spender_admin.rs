@@ -1,7 +1,7 @@
 //! Transfers the admin role within SpenderState to a new keypair.
 //! Both the current admin and the incoming admin must sign to prevent transfer to an uncontrolled key.
 
-use crate::{events::SpenderAdminUpdated, state::SpenderState};
+use crate::{errors::ErrorCode, events::SpenderAdminUpdated, state::SpenderState};
 use crate::instructions::initialize_spender_state::SPENDER_STATE_SEED;
 use anchor_lang::prelude::*;
 
@@ -25,6 +25,10 @@ pub struct UpdateSpenderAdmin<'info> {
 }
 
 pub fn handler(ctx: Context<UpdateSpenderAdmin>) -> Result<()> {
+    require!(
+        ctx.accounts.new_admin.key() != Pubkey::default(),
+        ErrorCode::ZeroAddress
+    );
     ctx.accounts.spender_state.admin = ctx.accounts.new_admin.key();
 
     emit!(SpenderAdminUpdated {
