@@ -1,5 +1,7 @@
 //! Allowlists a single token account as a valid transfer destination for a merchant.
 //! Called by governor. Uses spender-style seeds (no mint in PDA, [u8;32] merchant_id).
+//! Uses `init` (not init_if_needed) so that re-calling for an already-allowlisted
+//! destination fails explicitly rather than silently emitting a duplicate event.
 
 use crate::{
     errors::ErrorCode,
@@ -36,7 +38,7 @@ pub struct AddDelegateDestination<'info> {
     pub merchant_delegate_state: Account<'info, MerchantDelegateState>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = payer,
         space = DelegateDestinationState::DISCRIMINATOR.len() + DelegateDestinationState::INIT_SPACE,
         seeds = [

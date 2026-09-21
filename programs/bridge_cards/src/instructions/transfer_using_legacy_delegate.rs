@@ -102,6 +102,10 @@ pub fn handler<'info>(
         ErrorCode::LegacyMerchantIdMismatch
     );
     require!(
+        ctx.accounts.user_ata.key() != ctx.accounts.receiver_ata.key(),
+        ErrorCode::SelfTransfer
+    );
+    require!(
         ctx.accounts.user_ata.mint == ctx.accounts.token_mint.key(),
         ErrorCode::InvalidPda
     );

@@ -89,6 +89,11 @@ pub enum ErrorCode {
     #[msg("Unauthorized")]
     Unauthorized,
 
+    /// Returned when the source and destination token accounts are the same.
+    /// A self-transfer is a no-op on balance but drains the SPL delegate allowance.
+    #[msg("Source and destination token accounts must be different")]
+    SelfTransfer,
+
     /// Returned by transfer_using_legacy_delegate when the supplied u64 merchant_id
     /// does not match the legacy_merchant_id recorded in MerchantDelegateState, or when
     /// the merchant was not registered as a legacy merchant (legacy_merchant_id == 0).

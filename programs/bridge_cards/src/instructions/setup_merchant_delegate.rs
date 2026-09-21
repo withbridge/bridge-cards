@@ -60,6 +60,10 @@ pub fn handler<'info>(
         ErrorCode::TooManyDestinations
     );
 
+    // Collect only the destinations that are actually initialized in this call
+    // (not ones skipped via continue because they already existed).
+    let mut initial_destinations: Vec<Pubkey> = Vec::new();
+
     let rent = Rent::get()?;
     let space = DelegateDestinationState::DISCRIMINATOR.len() + DelegateDestinationState::INIT_SPACE;
     let lamports = rent.minimum_balance(space);
@@ -154,13 +158,9 @@ pub fn handler<'info>(
         let mut data = destination_state.try_borrow_mut_data()?;
         data[..8].copy_from_slice(DelegateDestinationState::DISCRIMINATOR);
         data[8] = bump;
-    }
 
-    let initial_destinations: Vec<Pubkey> = ctx
-        .remaining_accounts
-        .chunks(2)
-        .map(|pair| pair[0].key())
-        .collect();
+        initial_destinations.push(destination.key());
+    }
 
     emit!(MerchantDelegateAdded {
         merchant_id,
