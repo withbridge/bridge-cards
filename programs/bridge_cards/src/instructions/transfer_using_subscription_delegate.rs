@@ -83,6 +83,10 @@ pub fn handler<'info>(
     require!(!ctx.accounts.spender_state.paused, ErrorCode::ProgramPaused);
     require!(amount > 0, ErrorCode::InvalidAmount);
     require!(
+        ctx.accounts.delegator_ata.key() != ctx.accounts.receiver_ata.key(),
+        ErrorCode::SelfTransfer
+    );
+    require!(
         ctx.accounts.delegator_ata.owner == delegator,
         ErrorCode::InvalidPda
     );
