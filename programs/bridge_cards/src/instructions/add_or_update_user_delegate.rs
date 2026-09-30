@@ -1,4 +1,5 @@
 use crate::events::UserDelegateAddedOrUpdated;
+use crate::instructions::set_migrated::MIGRATION_STATE_SEED;
 use crate::state::{MerchantManagerState, UserDelegateState};
 use crate::{ID, MERCHANT_MANAGER_SEED};
 use anchor_lang::prelude::*;
@@ -103,6 +104,10 @@ pub struct AddOrUpdateUserDelegate<'info> {
 
     /// Required for account creation
     pub system_program: Program<'info, System>,
+
+    /// CHECK: When owned by bridge-cards, the contract is migrated and this instruction is blocked.
+    #[account(seeds = [MIGRATION_STATE_SEED], bump, seeds::program = ID)]
+    pub migration_state: UncheckedAccount<'info>,
 }
 
 /**
@@ -131,6 +136,11 @@ pub fn handler(
     period_transfer_limit: u64,
     transfer_limit_period: u32,
 ) -> Result<()> {
+    require!(
+        ctx.accounts.migration_state.owner != &ID,
+        crate::errors::ErrorCode::ProgramMigrated
+    );
+
     let user_delegate_account = &mut ctx.accounts.user_delegate_account;
 
     // Set the maximum amount allowed per transaction

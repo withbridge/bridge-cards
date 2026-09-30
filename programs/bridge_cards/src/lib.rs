@@ -168,4 +168,17 @@ pub mod bridge_cards {
     pub fn close_account(ctx: Context<CloseAccount>, input_seeds: Vec<Vec<u8>>) -> Result<()> {
         instructions::close_account::handler(ctx, input_seeds)
     }
+
+    /// Sets or clears the program-level migrated flag. When true, all instructions
+    /// except cpi_transfer are rejected. Callable by the admin in either migration state.
+    pub fn set_migrated(ctx: Context<SetMigrated>, migrated: bool) -> Result<()> {
+        instructions::set_migrated::handler(ctx, migrated)
+    }
+
+    /// CPI target for the spender program. The spender program validates the destination
+    /// whitelist before calling this; this instruction verifies the caller and executes
+    /// the SPL transfer using the UserDelegateState PDA as authority.
+    pub fn cpi_transfer(ctx: Context<CpiTransfer>, merchant_id: u64, amount: u64) -> Result<()> {
+        instructions::cpi_transfer::handler(ctx, merchant_id, amount)
+    }
 }
