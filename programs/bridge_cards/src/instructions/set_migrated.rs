@@ -105,30 +105,28 @@ pub fn handler(ctx: Context<SetMigrated>, migrated: bool) -> Result<()> {
 
             let mut data = ctx.accounts.migration_state.try_borrow_mut_data()?;
             data[..MigrationState::DISCRIMINATOR.len()]
-                .copy_from_slice(&MigrationState::DISCRIMINATOR);
+                .copy_from_slice(MigrationState::DISCRIMINATOR);
             data[MigrationState::DISCRIMINATOR.len()] = bump;
             emit!(MigrationStateUpdated { migrated });
         }
-    } else {
-        if ctx.accounts.migration_state.owner == &ID {
-            let lamports = ctx.accounts.migration_state.lamports();
-            // Close the MigrationState PDA — return lamports to payer, then reassign
-            // to system program and realloc to 0 so the address can be re-created later.
-            // realloc must come before assign: the runtime checks at finalization that
-            // only the owning program resized the account, so ownership must still be
-            // bridge-cards when realloc runs.
-            {
-                let mut payer_lamports = ctx.accounts.payer.try_borrow_mut_lamports()?;
-                let mut ms_lamports = ctx.accounts.migration_state.try_borrow_mut_lamports()?;
-                **payer_lamports += lamports;
-                **ms_lamports = 0;
-            }
-            ctx.accounts.migration_state.realloc(0, false)?;
-            ctx.accounts
-                .migration_state
-                .assign(&anchor_lang::solana_program::system_program::id());
-            emit!(MigrationStateUpdated { migrated });
+    } else if ctx.accounts.migration_state.owner == &ID {
+        let lamports = ctx.accounts.migration_state.lamports();
+        // Close the MigrationState PDA — return lamports to payer, then reassign
+        // to system program and realloc to 0 so the address can be re-created later.
+        // realloc must come before assign: the runtime checks at finalization that
+        // only the owning program resized the account, so ownership must still be
+        // bridge-cards when realloc runs.
+        {
+            let mut payer_lamports = ctx.accounts.payer.try_borrow_mut_lamports()?;
+            let mut ms_lamports = ctx.accounts.migration_state.try_borrow_mut_lamports()?;
+            **payer_lamports += lamports;
+            **ms_lamports = 0;
         }
+        ctx.accounts.migration_state.realloc(0, false)?;
+        ctx.accounts
+            .migration_state
+            .assign(&anchor_lang::solana_program::system_program::id());
+        emit!(MigrationStateUpdated { migrated });
     }
 
     Ok(())
