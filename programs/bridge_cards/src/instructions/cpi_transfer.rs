@@ -25,7 +25,6 @@ use crate::errors::ErrorCode;
 use crate::events::CpiTransferExecuted;
 use crate::instructions::add_or_update_user_delegate::USER_DELEGATE_SEED;
 use crate::state::UserDelegateState;
-use crate::ID;
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
 
@@ -65,7 +64,6 @@ pub struct CpiTransfer<'info> {
             user_token_account.key().as_ref(),
         ],
         bump,
-        seeds::program = ID,
     )]
     pub user_delegate_account: Account<'info, UserDelegateState>,
 
