@@ -104,7 +104,8 @@ pub fn handler(ctx: Context<SetMigrated>, migrated: bool) -> Result<()> {
             )?;
 
             let mut data = ctx.accounts.migration_state.try_borrow_mut_data()?;
-            data[..MigrationState::DISCRIMINATOR.len()].copy_from_slice(&MigrationState::DISCRIMINATOR);
+            data[..MigrationState::DISCRIMINATOR.len()]
+                .copy_from_slice(&MigrationState::DISCRIMINATOR);
             data[MigrationState::DISCRIMINATOR.len()] = bump;
             emit!(MigrationStateUpdated { migrated });
         }

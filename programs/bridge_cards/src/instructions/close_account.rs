@@ -96,7 +96,10 @@ pub struct CloseAccount<'info> {
  * @return Result indicating success or containing an error
  */
 pub fn handler(ctx: Context<CloseAccount>, input_seeds: Vec<Vec<u8>>) -> Result<()> {
-    require!(ctx.accounts.migration_state.owner != &ID, ErrorCode::ProgramMigrated);
+    require!(
+        ctx.accounts.migration_state.owner != &ID,
+        ErrorCode::ProgramMigrated
+    );
 
     let account_to_close = &ctx.accounts.account_to_close;
     let payer = &ctx.accounts.payer;

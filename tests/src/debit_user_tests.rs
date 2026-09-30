@@ -209,7 +209,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -299,7 +299,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -377,7 +377,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -438,7 +438,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -552,7 +552,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -650,7 +650,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -724,7 +724,7 @@ parameterized_token_test!(
             destination_token_account: invalid_destination_token_account, // Wrong destination
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -836,7 +836,7 @@ parameterized_token_test!(
             mint: mint_pk,
             user_delegate_account: user_delegate_pda.pubkey,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
         };
 
@@ -868,7 +868,7 @@ parameterized_token_test!(
             destination_token_account,
             mint: mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -932,7 +932,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: different_mint_pk, // Wrong mint
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -993,7 +993,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -1088,7 +1088,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
@@ -1193,7 +1193,7 @@ parameterized_token_test!(
             destination_token_account: debit_context.destination_token_account,
             mint: debit_context.mint_pk,
 
-        migration_state: make_migration_state_pda(&ctx.program_id),
+            migration_state: make_migration_state_pda(&ctx.program_id),
             system_program: System::id(),
             token_program: token_program.program_id(),
         };
