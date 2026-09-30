@@ -1,6 +1,13 @@
 //! Executes a token transfer as a CPI target for the spender program.
 //! The spender program is responsible for destination whitelist validation before calling this;
 //! this instruction only verifies the CPI origin and executes the SPL transfer.
+//!
+//! `user_delegate_account` uses `init_if_needed` so new users can be onboarded lazily:
+//! they pre-approve the deterministic PDA address as their SPL delegate, and the first call
+//! to this instruction creates the account in the same transaction. The account is created
+//! with zero transfer limits, which is intentional — limits are irrelevant on the CPI path
+//! (only `debit_user` checks them, and that instruction is blocked post-migration). The spender
+//! program's destination whitelist and pause flag are the operative controls on this path.
 
 use crate::errors::ErrorCode;
 use crate::events::CpiTransferExecuted;
@@ -31,18 +38,27 @@ pub struct CpiTransfer<'info> {
     pub caller_proof: Signer<'info>,
 
     /// The UserDelegateState PDA that acts as the SPL delegate authority on user_token_account.
-    /// Seeds verify this is the legitimate bridge-cards PDA for this merchant/mint/ATA.
+    /// Created on first use (init_if_needed) so new users can be onboarded lazily without a
+    /// separate add_or_update_user_delegate call. The debitor pays for account creation.
     #[account(
+        init_if_needed,
+        payer = debitor,
+        space = UserDelegateState::DISCRIMINATOR.len() + UserDelegateState::INIT_SPACE,
         seeds = [
             USER_DELEGATE_SEED,
             merchant_id.to_le_bytes().as_ref(),
             mint.key().as_ref(),
             user_token_account.key().as_ref(),
         ],
-        bump = user_delegate_account.bump,
+        bump,
         seeds::program = ID,
     )]
     pub user_delegate_account: Account<'info, UserDelegateState>,
+
+    /// Pays for UserDelegateState account creation when a new user is onboarded.
+    /// This is the spender debitor, who is already a signer on the outer transaction.
+    #[account(mut)]
+    pub debitor: Signer<'info>,
 
     #[account(mut)]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
@@ -54,9 +70,16 @@ pub struct CpiTransfer<'info> {
 
     #[account(constraint = token_program.key() == *mint.to_account_info().owner @ ErrorCode::InvalidPda)]
     pub token_program: Interface<'info, TokenInterface>,
+
+    /// Required for UserDelegateState account creation.
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<CpiTransfer>, merchant_id: u64, amount: u64) -> Result<()> {
+    // Ensure bump is set; init_if_needed zero-initializes new accounts so we must write it.
+    // For existing accounts this is a no-op: the stored bump already matches.
+    ctx.accounts.user_delegate_account.bump = ctx.bumps.user_delegate_account;
+
     let merchant_id_bytes = merchant_id.to_le_bytes();
     let bump_bytes = [ctx.accounts.user_delegate_account.bump];
     let signer_seeds: &[&[&[u8]]] = &[&[
