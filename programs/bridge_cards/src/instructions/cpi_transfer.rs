@@ -50,18 +50,29 @@ pub struct CpiTransfer<'info> {
     pub caller_proof: Signer<'info>,
 
     /// The UserDelegateState PDA that acts as the SPL delegate authority on user_token_account.
-    /// Seeds verify this is the legitimate bridge-cards PDA for this merchant/mint/ATA.
+    /// Created on first use (init_if_needed) so new users can be onboarded lazily: they
+    /// pre-approve this deterministic PDA address as their SPL delegate, and the first transfer
+    /// creates the account in the same transaction. The debitor pays for account creation.
+    /// New accounts are zero-initialized; limits are irrelevant on this path (see module doc).
     #[account(
+        init_if_needed,
+        payer = debitor,
+        space = UserDelegateState::DISCRIMINATOR.len() + UserDelegateState::INIT_SPACE,
         seeds = [
             USER_DELEGATE_SEED,
             merchant_id.to_le_bytes().as_ref(),
             mint.key().as_ref(),
             user_token_account.key().as_ref(),
         ],
-        bump = user_delegate_account.bump,
+        bump,
         seeds::program = ID,
     )]
     pub user_delegate_account: Account<'info, UserDelegateState>,
+
+    /// Pays for UserDelegateState account creation when onboarding a new user.
+    /// This is the spender debitor, already a signer on the outer transaction.
+    #[account(mut)]
+    pub debitor: Signer<'info>,
 
     #[account(mut)]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
@@ -73,9 +84,16 @@ pub struct CpiTransfer<'info> {
 
     #[account(constraint = token_program.key() == *mint.to_account_info().owner @ ErrorCode::InvalidPda)]
     pub token_program: Interface<'info, TokenInterface>,
+
+    /// Required for UserDelegateState account creation.
+    pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<CpiTransfer>, merchant_id: u64, amount: u64) -> Result<()> {
+    // Set bump on every call; init_if_needed zero-initializes new accounts so this is required
+    // for newly-created accounts. For existing accounts this is a no-op (stored bump matches).
+    ctx.accounts.user_delegate_account.bump = ctx.bumps.user_delegate_account;
+
     let merchant_id_bytes = merchant_id.to_le_bytes();
     let bump_bytes = [ctx.accounts.user_delegate_account.bump];
     let signer_seeds: &[&[&[u8]]] = &[&[
