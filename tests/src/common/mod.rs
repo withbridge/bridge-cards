@@ -11,6 +11,7 @@ use bridge_cards::instructions::add_or_update_merchant_debitor::MERCHANT_DEBITOR
 use bridge_cards::instructions::add_or_update_merchant_destination::MERCHANT_DESTINATION_SEED;
 use bridge_cards::instructions::add_or_update_merchant_manager::MERCHANT_MANAGER_SEED;
 use bridge_cards::instructions::add_or_update_user_delegate::USER_DELEGATE_SEED;
+use bridge_cards::instructions::set_migrated::MIGRATION_STATE_SEED;
 use litesvm::types::TransactionResult;
 use litesvm::LiteSVM;
 use litesvm_token::*;
@@ -123,6 +124,7 @@ pub fn setup_merchant_manager(ctx: &mut Context, merchant_id: u64) -> Pubkey {
         admin: ctx.payer_pk,
         payer: ctx.payer_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         manager_state,
         manager: ctx.merchant_manager_kp.pubkey(),
         system_program: anchor_lang::system_program::ID,
@@ -263,6 +265,10 @@ pub fn make_merchant_destination_pda(
     PDAWithBump { pubkey: pda, bump }
 }
 
+pub fn make_migration_state_pda(program_id: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[MIGRATION_STATE_SEED], program_id).0
+}
+
 pub fn make_manager_pda(merchant_id: u64, program_id: &Pubkey) -> PDAWithBump {
     let (key, bump) = Pubkey::find_program_address(
         &[MERCHANT_MANAGER_SEED, &merchant_id.to_le_bytes()],
@@ -321,6 +327,7 @@ pub fn setup_merchant_debitor_and_destination_with_program(
         debitor: debitor_pk,
         debitor_state: debitor_pda.pubkey,
         mint: *mint_pk,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: anchor_lang::system_program::ID,
     };
     let ix = create_add_or_update_merchant_debitor_instruction(
@@ -342,6 +349,7 @@ pub fn setup_merchant_debitor_and_destination_with_program(
         admin: ctx.payer_pk,
         payer: ctx.payer_pk,
         state: ctx.bridge_cards_state.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         destination_state: destination_pda.pubkey,
         destination_token_account,
         mint: *mint_pk,

@@ -45,6 +45,7 @@ async fn test_create_user_delegate() {
         user_token_account,
         mint: mint_pk,
         user_delegate_account: user_delegate_pda.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 
@@ -159,6 +160,7 @@ async fn test_non_manager_cannot_create_user_delegate() {
         user_token_account,
         mint: mint_pk,
         user_delegate_account: user_delegate_pda.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 
@@ -228,6 +230,7 @@ async fn test_update_user_delegate() {
         user_token_account,
         mint: mint_pk,
         user_delegate_account: user_delegate_pda.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 
@@ -301,6 +304,7 @@ async fn test_update_user_delegate() {
         user_token_account,
         mint: mint_pk,
         user_delegate_account: user_delegate_pda.pubkey,
+        migration_state: make_migration_state_pda(&ctx.program_id),
         system_program: System::id(),
     };
 

@@ -21,3 +21,9 @@ pub use close_account::*;
 
 pub mod add_or_update_merchant_manager;
 pub use add_or_update_merchant_manager::*;
+
+pub mod cpi_transfer;
+pub use cpi_transfer::*;
+
+pub mod set_migrated;
+pub use set_migrated::*;

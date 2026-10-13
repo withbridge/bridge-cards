@@ -96,6 +96,23 @@ pub struct MerchantManagerAddedOrUpdated {
     pub manager: Pubkey,
 }
 
+/// Emitted when the admin sets or clears the migrated flag.
+#[event]
+pub struct MigrationStateUpdated {
+    pub migrated: bool,
+}
+
+/// Emitted when cpi_transfer executes a transfer on behalf of the spender program.
+#[event]
+pub struct CpiTransferExecuted {
+    pub merchant_id: u64,
+    pub user_delegate: Pubkey,
+    pub user_ata: Pubkey,
+    pub destination_ata: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+}
+
 /**
  * Event emitted when a user is debited by a merchant.
  * This event is emitted by the debit_user instruction.

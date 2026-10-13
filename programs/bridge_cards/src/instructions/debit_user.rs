@@ -1,5 +1,6 @@
 use crate::events::UserDebited;
 use crate::instructions::add_or_update_user_delegate::USER_DELEGATE_SEED;
+use crate::instructions::set_migrated::MIGRATION_STATE_SEED;
 use crate::state::{MerchantDebitorState, MerchantDestinationState, UserDelegateState};
 use crate::ID;
 use crate::{MERCHANT_DEBITOR_SEED, MERCHANT_DESTINATION_SEED};
@@ -98,6 +99,17 @@ pub struct DebitUser<'info> {
     /// Required Solana system programs
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, TokenInterface>,
+
+    /// CHECK: When owned by the bridge-cards program, the contract is migrated and
+    /// this instruction is blocked. Seeds constraint validates the canonical PDA.
+    /// Placed last so existing callers passing N accounts are unaffected; the extra
+    /// account silently lands in remaining_accounts on the old binary.
+    #[account(
+        seeds = [MIGRATION_STATE_SEED],
+        bump,
+        seeds::program = ID,
+    )]
+    pub migration_state: UncheckedAccount<'info>,
 }
 
 /**
@@ -115,6 +127,11 @@ pub struct DebitUser<'info> {
  * @return Result indicating success or containing an error
  */
 pub fn handler(ctx: Context<DebitUser>, merchant_id: u64, amount: u64) -> Result<()> {
+    require!(
+        ctx.accounts.migration_state.owner != &ID,
+        crate::errors::ErrorCode::ProgramMigrated
+    );
+
     // Validate transfer limits and update period tracking
     let clock = Clock::get()?;
     ctx.accounts

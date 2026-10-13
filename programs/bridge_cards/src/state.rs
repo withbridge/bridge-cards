@@ -23,6 +23,15 @@ pub struct BridgeCardsState {
     pub bump: u8,
 }
 
+/// Existence of this PDA signals that the program has been migrated to the spender program.
+/// Created by set_migrated(true), closed by set_migrated(false).
+/// Seeds: [b"migration"] / program = bridge_cards
+#[account]
+#[derive(InitSpace)]
+pub struct MigrationState {
+    pub bump: u8,
+}
+
 /**
  * State for a user's delegate account that can initiate transfers on their behalf.
  *
