@@ -51,11 +51,11 @@ pub struct CpiTransfer<'info> {
     /// The UserDelegateState PDA that acts as the SPL delegate authority on user_token_account.
     /// Created on first use (init_if_needed) so new users can be onboarded lazily: they
     /// pre-approve this deterministic PDA address as their SPL delegate, and the first transfer
-    /// creates the account in the same transaction. The debitor pays for account creation.
+    /// creates the account in the same transaction. The payer pays for account creation.
     /// New accounts are zero-initialized; limits are irrelevant on this path (see module doc).
     #[account(
         init_if_needed,
-        payer = debitor,
+        payer = payer,
         space = UserDelegateState::DISCRIMINATOR.len() + UserDelegateState::INIT_SPACE,
         seeds = [
             USER_DELEGATE_SEED,
@@ -68,9 +68,10 @@ pub struct CpiTransfer<'info> {
     pub user_delegate_account: Account<'info, UserDelegateState>,
 
     /// Pays for UserDelegateState account creation when onboarding a new user.
-    /// This is the spender debitor, already a signer on the outer transaction.
+    /// Separate from the spender debitor so the global debitor stays read-only
+    /// and is not subject to per-account CostTracker griefing.
     #[account(mut)]
-    pub debitor: Signer<'info>,
+    pub payer: Signer<'info>,
 
     #[account(mut)]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
